@@ -482,7 +482,7 @@ async def wellness_scores():
         "stress_score": stress_score,
         "burnout_score": burnout_score,
         "avg_sleep_hours": round(avg_sleep, 1),
-        "streak_days": 5,
+        "streak_days": await compute_streak(),
     }
 
 
