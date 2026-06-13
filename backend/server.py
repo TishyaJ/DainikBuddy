@@ -133,8 +133,10 @@ class UserProfile(BaseModel):
     user_id: str = DEMO_USER
     name: str = "Alex"
     monthly_income: float = 16000
-    streak_days: int = 5
+    streak_days: int = 0  # computed on read from mood entries
     avatar_initial: str = "A"
+    onboarded: bool = False
+    your_pattern: Dict[str, Any] = Field(default_factory=dict)
 
 
 class Task(BaseModel):
@@ -560,20 +562,62 @@ async def discover_campus():
 
 
 # ============ PROFILE ============
+async def compute_streak() -> int:
+    """Count consecutive days ending today or yesterday with at least one mood entry."""
+    moods = await db.mood_entries.find(
+        {"user_id": DEMO_USER}, {"_id": 0, "created_at": 1}
+    ).sort("created_at", -1).to_list(400)
+    if not moods:
+        return 0
+    dates = sorted({datetime.fromisoformat(m["created_at"]).date() for m in moods}, reverse=True)
+    today = datetime.now(timezone.utc).date()
+    if (today - dates[0]).days > 1:
+        return 0
+    streak = 1
+    for i in range(1, len(dates)):
+        if (dates[i - 1] - dates[i]).days == 1:
+            streak += 1
+        else:
+            break
+    return streak
+
+
 @api_router.get("/profile")
 async def get_profile():
     p = await db.user_profiles.find_one({"user_id": DEMO_USER}, {"_id": 0})
     if not p:
         p = UserProfile().model_dump()
         await db.user_profiles.insert_one(p)
+    # ensure new keys exist for older docs
+    p.setdefault("onboarded", False)
+    p.setdefault("your_pattern", {})
+    # compute live streak
+    p["streak_days"] = await compute_streak()
     return p
 
 
 @api_router.patch("/profile")
 async def update_profile(payload: Dict[str, Any]):
     payload.pop("user_id", None)
+    payload.pop("streak_days", None)  # streak is always computed
+    # avatar initial follows first letter of name
+    if "name" in payload and payload["name"]:
+        payload["avatar_initial"] = payload["name"].strip()[:1].upper()
     await db.user_profiles.update_one({"user_id": DEMO_USER}, {"$set": payload}, upsert=True)
-    return await db.user_profiles.find_one({"user_id": DEMO_USER}, {"_id": 0})
+    return await get_profile()
+
+
+@api_router.post("/profile/onboard")
+async def onboard(payload: Dict[str, Any]):
+    """Persist Your-Pattern and mark onboarded=true. Accepts {name, your_pattern}."""
+    update = {"onboarded": True}
+    if payload.get("name"):
+        update["name"] = payload["name"].strip()
+        update["avatar_initial"] = update["name"][:1].upper()
+    if isinstance(payload.get("your_pattern"), dict):
+        update["your_pattern"] = payload["your_pattern"]
+    await db.user_profiles.update_one({"user_id": DEMO_USER}, {"$set": update}, upsert=True)
+    return await get_profile()
 
 
 # ============ TASKS ============

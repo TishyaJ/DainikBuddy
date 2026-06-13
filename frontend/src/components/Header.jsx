@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Flame, Bell } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 
 export const Header = ({ title, subtitle, gradient = false }) => {
   const [profile, setProfile] = useState({ streak_days: 0, avatar_initial: "A" });
+  const nav = useNavigate();
   useEffect(() => {
     api.get("/profile").then((r) => setProfile(r.data)).catch(() => {});
   }, []);
@@ -40,12 +42,13 @@ export const Header = ({ title, subtitle, gradient = false }) => {
           >
             <Bell className="w-4 h-4" />
           </button>
-          <div
+          <button
+            onClick={() => nav("/profile")}
             data-testid="user-avatar"
-            className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 text-white text-sm font-bold flex items-center justify-center ring-2 ring-white"
+            className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 text-white text-sm font-bold flex items-center justify-center ring-2 ring-white active:scale-95 transition"
           >
             {profile.avatar_initial || "A"}
-          </div>
+          </button>
         </div>
       </div>
     </div>
