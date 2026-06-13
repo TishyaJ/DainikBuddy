@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-route
 import { DomainProvider, useDomain } from "./context/DomainContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { GamificationProvider } from "./context/GamificationContext";
+import { NotificationProvider } from "./context/NotificationContext";
 import LevelUpOverlay from "./components/LevelUpOverlay";
 import { PhoneFrame } from "./components/PhoneFrame";
 import { BottomNav } from "./components/BottomNav";
@@ -14,6 +15,8 @@ import DiscoverBuddy from "./pages/DiscoverBuddy";
 import ChatCenter from "./pages/ChatCenter";
 import BuddyChat from "./pages/BuddyChat";
 import Profile from "./pages/Profile";
+import NotificationCenter from "./pages/NotificationCenter";
+import NotificationPreferences from "./pages/NotificationPreferences";
 import Onboarding from "./pages/Onboarding";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -101,6 +104,8 @@ const Shell = () => {
           <Route path="/chat" element={<ChatCenter />} />
           <Route path="/chat/:buddy" element={<BuddyChat />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/notifications" element={<NotificationCenter />} />
+          <Route path="/notifications/preferences" element={<NotificationPreferences />} />
         </Routes>
       )}
       {showNav && <BottomNav />}
@@ -177,10 +182,12 @@ function AppWrapper() {
     <AuthProvider>
       <DomainProvider>
         <GamificationProvider>
-          <BrowserRouter>
-            <App />
-            <LevelUpOverlay />
-          </BrowserRouter>
+          <NotificationProvider>
+            <BrowserRouter>
+              <App />
+              <LevelUpOverlay />
+            </BrowserRouter>
+          </NotificationProvider>
         </GamificationProvider>
       </DomainProvider>
     </AuthProvider>

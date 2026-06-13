@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { Flame, Bell } from "lucide-react";
+import { Flame } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
+import { NotificationBell } from "./NotificationBell";
 
 export const Header = ({ title, subtitle, gradient = false }) => {
   const [profile, setProfile] = useState({ streak_days: 0, avatar_initial: "A" });
   const nav = useNavigate();
   useEffect(() => {
-    api.get("/profile").then((r) => setProfile(r.data)).catch(() => {});
+    api.get("/profile").then((r) => setProfile(r.data)).catch(() => { });
   }, []);
   return (
     <div
@@ -28,20 +29,12 @@ export const Header = ({ title, subtitle, gradient = false }) => {
         <div className="flex items-center gap-2">
           <div
             data-testid="streak-counter"
-            className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
-              gradient ? "bg-white/20 text-white" : "bg-orange-100 text-orange-700"
-            }`}
+            className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${gradient ? "bg-white/20 text-white" : "bg-orange-100 text-orange-700"
+              }`}
           >
             <Flame className="w-3.5 h-3.5" /> {profile.streak_days}
           </div>
-          <button
-            data-testid="notification-bell"
-            className={`w-9 h-9 rounded-full flex items-center justify-center ${
-              gradient ? "bg-white/20 text-white" : "bg-white text-slate-700 border border-slate-200"
-            }`}
-          >
-            <Bell className="w-4 h-4" />
-          </button>
+          <NotificationBell gradient={gradient} />
           <button
             onClick={() => nav("/profile")}
             data-testid="user-avatar"
