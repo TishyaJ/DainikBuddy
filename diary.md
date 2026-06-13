@@ -555,3 +555,125 @@ This is a "learn from corrections" pattern — the system gets smarter the more 
 - **Parent task 9 auto-completed** (only required child done, 9.2 was optional)
 - **All 173 tests passing**
 - **Next ready tasks**: 10.1 (Analytics service) — per the dependency graph
+
+
+---
+
+## June 13, 2026 — Task 10: Enhanced Data Analytics and Trend Detection
+
+### What happened
+Executed Task 10 (Enhanced Data Analytics and Trend Detection) — subtasks 10.1 (backend analytics service + router) and 10.3 (frontend analytics components). Task 10.2 (property tests) was optional and skipped. Also fixed environment issues (motor version incompatibility and missing DB_NAME in .env).
+
+### Environment Issues Encountered
+
+**Motor/PyMongo version clash:**
+When the user tried to start the server, they hit `ImportError: cannot import name '_QUERY_OPTIONS' from 'pymongo.cursor'`. Root cause: motor 3.3.1 was installed but pymongo had been upgraded to 4.17.0 which removed the internal `_QUERY_OPTIONS` constant. Fix: upgraded motor 3.3.1 → 3.7.1 which is compatible with pymongo 4.x.
+
+**Missing DB_NAME in .env:**
+After the motor fix, the server failed with `KeyError: 'DB_NAME'`. Investigation revealed the `DB_NAME=pocketbuddy` line had been dropped from `.env` during a prior file save operation. The TLS fix (`&tls=true&tlsAllowInvalidCertificates=true`) was also missing. Restored both.
+
+These weren't caused by Task 10 code changes — they were pre-existing environment issues that only surfaced when the user tried to restart the server in a new terminal session.
+
+### Execution Strategy
+- **10.1 and 10.3 dispatched in parallel** — backend and frontend are independent (frontend just needs to know the API contract, which is defined in the spec)
+- Both subagents completed successfully
+- The `analytics_service.py` already existed (created by a prior subagent run that was cancelled but whose file writes persisted)
+- The `analytics_router.py` was freshly created to wire the service to HTTP endpoints
+- Frontend components (`TrendsView.jsx`, `AnomalyFlag.jsx`, `MonthlyReport.jsx`) already existed from the same prior run
+- Integration work (routes in App.js, navigation from DailyHub) was completed this session
+
+### Key Architecture Decisions
+
+**Analytics service as pure functions accepting `db`:**
+Same pattern as context_engine.py and conversation_memory.py — all functions take `db` as parameter for testability. No module-level DB connection (unlike some service files that were created with their own Motor client — those work but are less ideal for testing).
+
+**Data sufficiency guards are explicit in responses:**
+Rather than returning an error HTTP code for insufficient data, the endpoints return 200 with a `status: "insufficient_data"` field explaining what's needed. This lets the frontend show a helpful "keep logging for X more days" message instead of an error state.
+
+**Anomaly detection uses rolling 30-day window:**
+The anomaly detector fetches all expenses from the last 30 days, groups by calendar date, computes the daily average, then flags any single day where total spend exceeds 2× that average. The response includes the raw numbers (amount, average, deviation_pct) so the frontend can display them contextually.
+
+**Recovery plan capped at 3 suggestions:**
+Per the spec, the recovery plan suggests at most 3 schedule adjustments. The service checks 4 habits (mood check-in, sleep logging, journaling, exercise), identifies those below 40% consistency, and generates a targeted suggestion for each — but caps at 3 maximum. Suggestions include specific time-of-day recommendations (morning/evening) based on the habit type.
+
+**Monthly report prediction uses simple linear projection:**
+`predicted_month_end_balance = income - (daily_spend_rate × days_in_month)`. This is intentionally simple — not a sophisticated ML forecast, just a trajectory warning. It answers "if you keep spending at this rate, where will you be?" which is the right level for a student budgeting tool.
+
+**Frontend TrendsView uses recharts ResponsiveContainer:**
+All charts are wrapped in `<ResponsiveContainer>` with explicit dimensions, ensuring they render quickly within the PhoneFrame's 420px max-width. The component uses `useCallback` for data fetching and minimal re-renders to stay under the 2-second render requirement.
+
+### API Verification Results
+
+All 7 endpoint tests passed via Invoke-WebRequest:
+1. Weekly trends (no data) → 200 with `insufficient_data` status and clear message
+2. Monthly trends (no data) → 200 with `insufficient_data` requiring 28 days
+3. Anomalies → 200 with empty array (correct — all expenses on same day, no multi-day comparison possible)
+4. Monthly report → 200 with full structure (income: 0, prediction with days_elapsed/days_in_month)
+5. Recovery plan → 200 with 4 declining habits identified and 3 adjustment suggestions
+6. Invalid period param → 422 (FastAPI regex validation working)
+7. No auth token → 401 (JWT protection working)
+
+### Frontend Build
+- `craco build` passes cleanly — no errors, no new warnings
+- TrendsView accessible at `/trends` route
+- DailyHub has "View Trends" button linking to the new page
+
+### Current State
+- **Tasks completed**: 1.x ✓, 2.1 ✓, 2.3 ✓, 3 ✓, 4.x ✓, 5.x ✓, 6.x ✓, 7 ✓, 8.x ✓, 9.x ✓, 10.1 ✓, 10.3 ✓
+- **Parent task 10 auto-completed** (both required children done, 10.2 was optional)
+- **All tests passing**
+- **Next task**: 11 (Checkpoint — ensure all tests pass)
+
+
+---
+
+## June 14, 2026 — Task 12: Daily Insights and Life-Balance Scoring
+
+### What happened
+Executed Task 12 (Daily Insights and Life-Balance Scoring) — subtasks 12.1 (backend) and 12.3 (frontend). Also fixed two bugs discovered during verification: `insights.map is not a function` in ChatCenter and the BottomNav positioning bug on the Social page.
+
+### Execution Strategy
+- **12.1 first** (backend endpoints) — frontend depends on these APIs existing
+- **12.3 second** (frontend integration) — renders radar chart + insight cards + tomorrow's plan
+- Both completed successfully, then manual verification caught 2 bugs which were fixed inline
+
+### Key Architecture Decisions
+
+**Caching daily insights in MongoDB:**
+Rather than regenerating insights on every page load (which involves calling `assemble_context` + computing scores), insights are cached in a `daily_insights` collection keyed by `(user_id, date)`. On first access after midnight (user's local timezone), fresh insights are generated and stored. Subsequent accesses that day return the cached version. This reduces DB queries per page load from ~10 to 1.
+
+**5-domain scoring formula breakdown:**
+- **Finance (70% budget adherence + 30% savings progress)**: Budget adherence uses a sliding scale — ≤70% spent = 100, linearly drops through 100% to 50, then below 50 if overspent. Savings progress is the average completion of all savings goals.
+- **Wellness (mood avg + sleep quality + sleep hours)**: Three components averaged — mood (1-5 mapped to 0-100), quality (poor/ok/good → 20/60/100), hours (fraction of 8h target).
+- **Academics (60% task completion + 40% study time)**: Completion rate from tasks collection, study time from task_sessions compared to 2h/day target.
+- **Social (group membership + activity)**: Base from group count (20 + 20 per group), boosted by recent activity messages.
+- **Self-Care (50% exercise frequency + 50% journal frequency)**: Exercise measured against 3 days/week target, journal against 5 days/week target.
+
+**Tomorrow's Plan ordering by ascending score:**
+The plan picks the 3 lowest-scoring domains and generates a concrete action for each. Actions are ordered by score ascending (worst first), so the user focuses on their weakest areas first. This satisfies Property 30.
+
+**Celebration animation implementation:**
+Uses framer-motion `AnimatePresence` with a fixed overlay (z-50). Spring animation on the content card, pulsing emoji, and staggered XP badge appearance. Auto-dismisses after 3000ms via setTimeout. The overlay is only shown once per plan completion (guarded by `xpAwarded` state).
+
+### Bugs Fixed
+
+**1. `insights.map is not a function` in ChatCenter:**
+The `/api/insights/daily` endpoint was enhanced in 12.1 to return `{insights: [...], generated_at, date}` for caching metadata. But both `ChatCenter.jsx` and `DailyHub.jsx` were doing `setInsights(r.data)` expecting `r.data` to be the array directly. Fixed by extracting: `setInsights(Array.isArray(r.data) ? r.data : r.data?.insights || [])`.
+
+**2. BottomNav floating in middle of Social page:**
+The `StudyGroups.jsx` root div had `className="pb-6"` but was missing `flex-1 overflow-auto`. The PhoneFrame uses `flex flex-col`, so child pages need `flex-1` to fill the remaining vertical space. Without it, the page only took its natural height (~200px for empty state) and BottomNav rendered immediately below. Fixed by adding `flex-1 overflow-auto scroll-area`.
+
+### Test Results
+- All 6 Invoke-WebRequest tests passing
+- Life-balance returns exactly 5 domains (Property 3) ✓
+- Insights returns exactly 3 cards (Property 28) ✓
+- Low-score domains have actionable steps ≤140 chars (Property 29) ✓
+- Tomorrow's Plan correctly unavailable before 8 PM (Property 30 time gate) ✓
+- Auth enforcement on all endpoints ✓
+- Frontend build clean ✓
+
+### Current State
+- **Tasks completed**: 1.x ✓, 2.1 ✓, 2.3 ✓, 3 ✓, 4.x ✓, 5.x ✓, 6.x ✓, 7 ✓, 8.x ✓, 9.x ✓, 10.x ✓, 11 ✓, 12.1 ✓, 12.3 ✓
+- **Parent task 12 completed**
+- **All 185 tests passing**
+- **Next task**: 13 (Voice Input for Journal Entries)

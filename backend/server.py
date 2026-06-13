@@ -5,6 +5,7 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import asyncio
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
@@ -1131,144 +1132,624 @@ async def fitness_today(user_id: str = Depends(get_current_user)):
 
 
 # ============ HELPER (life balance + insights) ============
-@api_router.get("/life-balance")
-async def life_balance(user_id: str = Depends(get_current_user)):
-    cats = await list_docs("budget_categories", user_id=user_id)
-    spent_pct = sum(c["spent"] for c in cats) / max(sum(c["allocated"] for c in cats), 1) * 100
-    finance = max(0, 100 - (spent_pct - 70))  # less spend = better
-    finance = round(min(100, max(0, finance)))
-    w = await wellness_scores(user_id)
-    wellness = w["burnout_score"]
-    goals = await list_docs("goals", user_id=user_id)
-    productivity = round(sum(g["current"] for g in goals) / max(len(goals), 1)) if goals else 60
-    discover = 78
-    overall = round((finance + wellness + productivity + discover) / 4)
+
+# Mood and sleep quality maps for scoring (matching context_engine)
+_MOOD_SCORE_MAP = {"great": 5, "good": 4, "okay": 3, "bad": 2, "terrible": 1}
+_SLEEP_QUALITY_SCORE_MAP = {"good": 5, "ok": 3, "poor": 1}
+
+# Low-score actionable steps per domain (≤140 chars)
+_LOW_SCORE_ACTIONS = {
+    "Finance": "Review your top spending category this week and set a daily limit to stay within budget.",
+    "Wellness": "Try a 5-minute breathing exercise and aim for 7+ hours of sleep tonight.",
+    "Academics": "Pick your most important task and work on it for 25 focused minutes today.",
+    "Social": "Reach out to a friend or join a study group session this week.",
+    "Self-Care": "Schedule a 15-min walk or write a short journal entry before bed tonight.",
+}
+
+
+async def _compute_life_balance_scores(user_id: str) -> Dict[str, Any]:
+    """
+    Compute 5-domain life-balance scores (Finance, Wellness, Academics, Social, Self-Care).
+    Each score is an integer 0-100. Handles partial data gracefully.
+    
+    Returns dict with 'domains' list, 'overall' score, 'days_used' per domain, and 'partial_data' flag.
+    """
+    now = datetime.now(timezone.utc)
+    seven_days_ago = (now - timedelta(days=7)).isoformat()
+
+    # Fetch all relevant data concurrently
+    (
+        budget_cats, expenses, savings_goals,
+        mood_entries, sleep_entries,
+        tasks_list, task_sessions,
+        study_groups,
+        exercise_sessions, journal_entries
+    ) = await asyncio.gather(
+        db.budget_categories.find({"user_id": user_id}, {"_id": 0}).to_list(100),
+        db.expenses.find({"user_id": user_id, "created_at": {"$gte": seven_days_ago}}, {"_id": 0}).to_list(500),
+        db.savings_goals.find({"user_id": user_id}, {"_id": 0}).to_list(50),
+        db.mood_entries.find({"user_id": user_id, "created_at": {"$gte": seven_days_ago}}, {"_id": 0}).to_list(100),
+        db.sleep_entries.find({"user_id": user_id, "date": {"$gte": seven_days_ago}}, {"_id": 0}).to_list(50),
+        db.tasks.find({"user_id": user_id, "created_at": {"$gte": seven_days_ago}}, {"_id": 0}).to_list(200),
+        db.task_sessions.find({"user_id": user_id, "started_at": {"$gte": seven_days_ago}}, {"_id": 0}).to_list(500),
+        db.study_groups.find({"members": {"$in": [user_id]}}, {"_id": 0}).to_list(50),
+        db.exercise_sessions.find({"user_id": user_id, "started_at": {"$gte": seven_days_ago}, "ended_at": {"$ne": None}}, {"_id": 0}).to_list(200),
+        db.journal_entries.find({"user_id": user_id, "created_at": {"$gte": seven_days_ago}}, {"_id": 0}).to_list(100),
+    )
+
+    days_used = {}
+    partial_data = False
+
+    # --- Finance Score (expense-to-budget ratio + savings progress) ---
+    finance_score = 50  # default neutral
+    finance_days = 0
+    if budget_cats:
+        total_allocated = sum(c.get("allocated", 0) for c in budget_cats)
+        total_spent = sum(c.get("spent", 0) for c in budget_cats)
+        if total_allocated > 0:
+            spend_ratio = total_spent / total_allocated
+            # Budget adherence component (0-100)
+            if spend_ratio <= 0.7:
+                budget_component = 100
+            elif spend_ratio <= 1.0:
+                budget_component = 100 - int((spend_ratio - 0.7) / 0.3 * 50)
+            elif spend_ratio <= 1.5:
+                budget_component = 50 - int((spend_ratio - 1.0) / 0.5 * 40)
+            else:
+                budget_component = max(0, 10 - int((spend_ratio - 1.5) * 20))
+            finance_score = budget_component
+    
+    # Savings progress boost
+    if savings_goals:
+        savings_progress = sum(
+            min(100, int((sg.get("saved", 0) / max(sg.get("target", 1), 1)) * 100))
+            for sg in savings_goals
+        ) / len(savings_goals)
+        # Blend budget adherence (70%) with savings progress (30%)
+        finance_score = int(finance_score * 0.7 + savings_progress * 0.3)
+
+    if expenses:
+        expense_dates = set()
+        for e in expenses:
+            try:
+                expense_dates.add(datetime.fromisoformat(e["created_at"]).date())
+            except (ValueError, TypeError):
+                pass
+        finance_days = len(expense_dates)
+    elif budget_cats:
+        finance_days = 7  # budget is current state, treat as full coverage
+    days_used["Finance"] = finance_days if finance_days > 0 else (7 if budget_cats else 0)
+    finance_score = max(0, min(100, int(finance_score)))
+
+    # --- Wellness Score (mood avg + sleep quality) ---
+    wellness_score = 50
+    wellness_days = 0
+    wellness_components = []
+    
+    if mood_entries:
+        mood_values = [_MOOD_SCORE_MAP.get(m.get("mood", "okay"), 3) for m in mood_entries]
+        avg_mood = sum(mood_values) / len(mood_values)
+        mood_component = int((avg_mood / 5.0) * 100)
+        wellness_components.append(mood_component)
+        mood_dates = set()
+        for m in mood_entries:
+            try:
+                mood_dates.add(datetime.fromisoformat(m["created_at"]).date())
+            except (ValueError, TypeError):
+                pass
+        wellness_days = max(wellness_days, len(mood_dates))
+
+    if sleep_entries:
+        quality_values = [_SLEEP_QUALITY_SCORE_MAP.get(s.get("quality", "ok"), 3) for s in sleep_entries]
+        avg_quality = sum(quality_values) / len(quality_values)
+        sleep_component = int((avg_quality / 5.0) * 100)
+        wellness_components.append(sleep_component)
+        # Also factor in hours
+        avg_hours = sum(s.get("hours", 7) for s in sleep_entries) / len(sleep_entries)
+        hours_component = int(min(100, (avg_hours / 8.0) * 100))
+        wellness_components.append(hours_component)
+        sleep_dates = set()
+        for s in sleep_entries:
+            try:
+                sleep_dates.add(datetime.fromisoformat(s.get("date", s.get("created_at", ""))).date())
+            except (ValueError, TypeError):
+                pass
+        wellness_days = max(wellness_days, len(sleep_dates))
+
+    if wellness_components:
+        wellness_score = int(sum(wellness_components) / len(wellness_components))
+    days_used["Wellness"] = wellness_days
+    wellness_score = max(0, min(100, wellness_score))
+
+    # --- Academics Score (task completion + study time) ---
+    academics_score = 50
+    academics_days = 0
+
+    if tasks_list:
+        completed = sum(1 for t in tasks_list if t.get("status") == "done")
+        total = len(tasks_list)
+        completion_component = int((completed / total) * 100) if total > 0 else 50
+        
+        # Study time component from task sessions
+        total_study_seconds = sum(s.get("elapsed_seconds", 0) for s in task_sessions)
+        # Target: 2 hours/day * 7 days = 50400 seconds
+        study_target = 7 * 2 * 3600
+        study_component = int(min(100, (total_study_seconds / max(study_target, 1)) * 100))
+        
+        academics_score = int(completion_component * 0.6 + study_component * 0.4)
+        
+        task_dates = set()
+        for t in tasks_list:
+            try:
+                task_dates.add(datetime.fromisoformat(t["created_at"]).date())
+            except (ValueError, TypeError):
+                pass
+        academics_days = len(task_dates)
+    days_used["Academics"] = academics_days
+    academics_score = max(0, min(100, academics_score))
+
+    # --- Social Score (group activity) ---
+    social_score = 50
+    social_days = 7  # groups are persistent, treat as full coverage if any exist
+
+    if study_groups:
+        # Score based on number of groups (more engagement = higher score)
+        # 1 group = 40, 2 groups = 60, 3+ groups = 80+
+        group_count = len(study_groups)
+        social_score = min(100, 20 + group_count * 20)
+        
+        # Check for recent activity in groups (messages, challenges)
+        recent_activity = await db.group_messages.find(
+            {"group_id": {"$in": [g.get("id", g.get("_id", "")) for g in study_groups]},
+             "created_at": {"$gte": seven_days_ago}},
+            {"_id": 0}
+        ).to_list(50)
+        if recent_activity:
+            activity_boost = min(20, len(recent_activity) * 5)
+            social_score = min(100, social_score + activity_boost)
+    else:
+        social_score = 20  # No groups = low social score
+        social_days = 0
+    days_used["Social"] = social_days
+    social_score = max(0, min(100, int(social_score)))
+
+    # --- Self-Care Score (exercise frequency + journal frequency) ---
+    selfcare_score = 50
+    selfcare_days = 0
+
+    exercise_dates = set()
+    journal_dates = set()
+
+    if exercise_sessions:
+        for es in exercise_sessions:
+            try:
+                exercise_dates.add(datetime.fromisoformat(es["started_at"]).date())
+            except (ValueError, TypeError):
+                pass
+    
+    if journal_entries:
+        for je in journal_entries:
+            try:
+                journal_dates.add(datetime.fromisoformat(je["created_at"]).date())
+            except (ValueError, TypeError):
+                pass
+
+    # Exercise: target 3+ days per week
+    exercise_component = int(min(100, (len(exercise_dates) / 3) * 100)) if exercise_dates else 0
+    # Journal: target 5+ days per week
+    journal_component = int(min(100, (len(journal_dates) / 5) * 100)) if journal_dates else 0
+
+    if exercise_dates or journal_dates:
+        selfcare_score = int(exercise_component * 0.5 + journal_component * 0.5)
+        selfcare_days = max(len(exercise_dates), len(journal_dates))
+    else:
+        selfcare_score = 20  # No self-care data
+        selfcare_days = 0
+    days_used["Self-Care"] = selfcare_days
+    selfcare_score = max(0, min(100, selfcare_score))
+
+    # Check if any domain has < 7 days
+    partial_data = any(d < 7 for d in days_used.values())
+
+    # Build domain list with low-score highlights
+    domains = []
+    for name, score in [
+        ("Finance", finance_score),
+        ("Wellness", wellness_score),
+        ("Academics", academics_score),
+        ("Social", social_score),
+        ("Self-Care", selfcare_score),
+    ]:
+        domain_entry = {"name": name, "score": score, "days_used": days_used.get(name, 0)}
+        if score < 40:
+            domain_entry["low_score"] = True
+            domain_entry["highlight"] = "red"
+            domain_entry["actionable_step"] = _LOW_SCORE_ACTIONS.get(name, "Focus on improving this area.")
+        domains.append(domain_entry)
+
+    overall = int(sum(d["score"] for d in domains) / len(domains))
+
     return {
         "overall": overall,
-        "domains": [
-            {"name": "Finance", "score": finance},
-            {"name": "Wellness", "score": wellness},
-            {"name": "Productivity", "score": productivity},
-            {"name": "Discover", "score": discover},
-        ],
+        "domains": domains,
+        "partial_data": partial_data,
+        "days_used": days_used,
     }
+
+
+@api_router.get("/life-balance")
+async def life_balance(user_id: str = Depends(get_current_user)):
+    """
+    Return 5-domain life-balance radar scores (Finance, Wellness, Academics, Social, Self-Care).
+    Each score is an integer 0-100. Includes partial data indicators.
+    Requirements: 10.1, 10.3, 10.6
+    """
+    import asyncio as _asyncio
+    result = await _compute_life_balance_scores(user_id)
+    return result
+
+
+async def _get_user_timezone(user_id: str) -> str:
+    """Get user's timezone from profile, default to Asia/Kolkata."""
+    profile = await db.user_profiles.find_one({"user_id": user_id}, {"_id": 0, "timezone": 1})
+    return (profile or {}).get("timezone", "Asia/Kolkata")
+
+
+async def _get_user_local_now(user_id: str) -> datetime:
+    """Get current time in user's local timezone."""
+    tz_name = await _get_user_timezone(user_id)
+    try:
+        from zoneinfo import ZoneInfo
+        user_tz = ZoneInfo(tz_name)
+    except (ImportError, KeyError):
+        # Fallback to UTC+5:30 for India
+        user_tz = timezone(timedelta(hours=5, minutes=30))
+    return datetime.now(user_tz)
+
+
+async def _generate_daily_insights(user_id: str) -> List[Dict[str, Any]]:
+    """
+    Generate exactly 3 daily insight cards: financial tip, wellness suggestion, productivity recommendation.
+    Each references specific user data points from the last 7 days.
+    """
+    from context_engine import assemble_context
+
+    ctx = await assemble_context(db, user_id)
+    raw = ctx.get("raw_data", {})
+
+    insights = []
+
+    # 1. Financial tip — always present
+    expense_data = raw.get("expenses", {})
+    if expense_data:
+        total_spent = expense_data.get("total_spent", 0)
+        by_category = expense_data.get("by_category", {})
+        top_cat = max(by_category, key=by_category.get) if by_category else "misc"
+        top_amount = by_category.get(top_cat, 0) if by_category else 0
+        if total_spent > 0:
+            pct = int(top_amount / total_spent * 100)
+            insights.append({
+                "domain": "finance",
+                "title": f"{top_cat.capitalize()} spending is {pct}% of total",
+                "detail": f"You spent ₹{int(top_amount)} on {top_cat} this week ({pct}% of ₹{int(total_spent)} total). Consider a daily cap.",
+                "icon": "trending-up",
+                "data_reference": f"₹{int(top_amount)} on {top_cat} (7-day total: ₹{int(total_spent)})",
+            })
+        else:
+            insights.append({
+                "domain": "finance",
+                "title": "No spending recorded",
+                "detail": "Start logging expenses to get personalized finance tips.",
+                "icon": "wallet",
+                "data_reference": "No expense data available",
+            })
+    else:
+        insights.append({
+            "domain": "finance",
+            "title": "Track your expenses",
+            "detail": "Start logging expenses to get personalized finance tips.",
+            "icon": "wallet",
+            "data_reference": "No expense data available",
+        })
+
+    # 2. Wellness suggestion — always present
+    mood_data = raw.get("mood", {})
+    sleep_data = raw.get("sleep", {})
+    if mood_data or sleep_data:
+        avg_stress = mood_data.get("avg_stress", 50) if mood_data else 50
+        avg_energy = mood_data.get("avg_energy", 50) if mood_data else 50
+        avg_sleep = sleep_data.get("avg_hours", 7) if sleep_data else 7
+        if avg_stress > 60:
+            insights.append({
+                "domain": "wellness",
+                "title": f"Stress at {int(avg_stress)}/100 this week",
+                "detail": f"Your 7-day stress avg is {int(avg_stress)}/100. Try a 5-min breathing exercise or short walk.",
+                "icon": "heart",
+                "data_reference": f"7-day avg stress: {int(avg_stress)}/100",
+            })
+        elif avg_sleep < 7:
+            insights.append({
+                "domain": "wellness",
+                "title": f"Sleep averaging {avg_sleep:.1f}h/night",
+                "detail": f"You averaged {avg_sleep:.1f}h sleep this week (target: 7-8h). Try a consistent bedtime tonight.",
+                "icon": "moon",
+                "data_reference": f"7-day avg sleep: {avg_sleep:.1f}h",
+            })
+        elif avg_energy < 50:
+            insights.append({
+                "domain": "wellness",
+                "title": f"Energy at {int(avg_energy)}/100",
+                "detail": f"Your energy averaged {int(avg_energy)}/100 this week. A short walk or stretch can boost it.",
+                "icon": "zap",
+                "data_reference": f"7-day avg energy: {int(avg_energy)}/100",
+            })
+        else:
+            insights.append({
+                "domain": "wellness",
+                "title": "Wellness on track",
+                "detail": f"Sleep ({avg_sleep:.1f}h avg) and stress ({int(avg_stress)}/100) look healthy. Keep it up!",
+                "icon": "smile",
+                "data_reference": f"Sleep: {avg_sleep:.1f}h, Stress: {int(avg_stress)}/100",
+            })
+    else:
+        insights.append({
+            "domain": "wellness",
+            "title": "Check in with your mood",
+            "detail": "Log your mood and sleep daily to get wellness insights.",
+            "icon": "heart",
+            "data_reference": "No mood/sleep data available",
+        })
+
+    # 3. Productivity recommendation — always present
+    task_data = raw.get("tasks", {})
+    if task_data:
+        completion_rate = task_data.get("completion_rate", 0)
+        total_tasks = task_data.get("count", 0)
+        completed = task_data.get("completed", 0)
+        if completion_rate < 50:
+            insights.append({
+                "domain": "productivity",
+                "title": f"Tasks {int(completion_rate)}% complete ({completed}/{total_tasks})",
+                "detail": f"You've completed {completed} of {total_tasks} tasks this week. Pick one priority task for today.",
+                "icon": "target",
+                "data_reference": f"Task completion: {completed}/{total_tasks} ({int(completion_rate)}%)",
+            })
+        elif completion_rate < 80:
+            insights.append({
+                "domain": "productivity",
+                "title": f"Tasks {int(completion_rate)}% complete",
+                "detail": f"Good progress — {completed}/{total_tasks} tasks done. Focus on your top priority to finish strong.",
+                "icon": "target",
+                "data_reference": f"Task completion: {completed}/{total_tasks} ({int(completion_rate)}%)",
+            })
+        else:
+            insights.append({
+                "domain": "productivity",
+                "title": f"Excellent: {int(completion_rate)}% tasks complete",
+                "detail": f"You completed {completed}/{total_tasks} tasks this week. Great momentum — keep it going!",
+                "icon": "check-circle",
+                "data_reference": f"Task completion: {completed}/{total_tasks} ({int(completion_rate)}%)",
+            })
+    else:
+        insights.append({
+            "domain": "productivity",
+            "title": "Set your goals",
+            "detail": "Add tasks to track your productivity this week.",
+            "icon": "target",
+            "data_reference": "No task data available",
+        })
+
+    return insights
 
 
 @api_router.get("/insights/daily")
 async def daily_insights(user_id: str = Depends(get_current_user)):
-    from context_engine import assemble_context, detect_correlations
-
+    """
+    Return exactly 3 daily insight cards (financial tip, wellness suggestion, productivity recommendation).
+    Regenerates on first access after midnight in user's local timezone.
+    Requirements: 10.2, 10.6
+    """
     try:
-        # Assemble user context for generating insights
-        ctx = await assemble_context(db, user_id)
-        raw = ctx.get("raw_data", {})
+        # Get user's local time for midnight regeneration logic
+        user_now = await _get_user_local_now(user_id)
+        today_str = user_now.strftime("%Y-%m-%d")
 
-        # Generate base insight cards from real user data
-        insights = []
+        # Check if we have cached insights for today
+        cached = await db.daily_insights.find_one(
+            {"user_id": user_id, "date": today_str}, {"_id": 0}
+        )
 
-        # Financial tip
-        expense_data = raw.get("expenses", {})
-        if expense_data:
-            total_spent = expense_data.get("total_spent", 0)
-            by_category = expense_data.get("by_category", {})
-            top_cat = max(by_category, key=by_category.get) if by_category else "misc"
-            top_amount = by_category.get(top_cat, 0) if by_category else 0
-            if total_spent > 0:
-                pct = int(top_amount / total_spent * 100)
-                insights.append({
-                    "domain": "finance",
-                    "title": f"{top_cat.capitalize()} spending is {pct}% of total",
-                    "detail": f"You spent ₹{int(top_amount)} on {top_cat} this week. Consider setting a budget limit.",
-                    "icon": "trending-up",
-                })
-            else:
-                insights.append({
-                    "domain": "finance",
-                    "title": "Track your expenses",
-                    "detail": "Start logging expenses to get personalized finance tips.",
-                    "icon": "wallet",
-                })
-        else:
-            insights.append({
-                "domain": "finance",
-                "title": "Track your expenses",
-                "detail": "Start logging expenses to get personalized finance tips.",
-                "icon": "wallet",
-            })
+        if cached and cached.get("insights"):
+            return {
+                "insights": cached["insights"],
+                "generated_at": cached.get("generated_at", ""),
+                "date": today_str,
+            }
 
-        # Wellness suggestion
-        mood_data = raw.get("mood", {})
-        sleep_data = raw.get("sleep", {})
-        if mood_data or sleep_data:
-            avg_stress = mood_data.get("avg_stress", 50) if mood_data else 50
-            avg_sleep = sleep_data.get("avg_hours", 7) if sleep_data else 7
-            if avg_stress > 60:
-                insights.append({
-                    "domain": "wellness",
-                    "title": f"Stress level at {int(avg_stress)}/100",
-                    "detail": "Try a 5-min breathing exercise or a short walk today.",
-                    "icon": "heart",
-                })
-            elif avg_sleep < 7:
-                insights.append({
-                    "domain": "wellness",
-                    "title": f"Sleep averaging {avg_sleep:.1f}h",
-                    "detail": "Aim for a consistent bedtime tonight to improve rest.",
-                    "icon": "moon",
-                })
-            else:
-                insights.append({
-                    "domain": "wellness",
-                    "title": "Wellness on track",
-                    "detail": "Keep up the good sleep and stress management!",
-                    "icon": "smile",
-                })
-        else:
-            insights.append({
-                "domain": "wellness",
-                "title": "Check in with your mood",
-                "detail": "Log your mood daily to get wellness insights.",
-                "icon": "heart",
-            })
+        # Generate fresh insights
+        insights = await _generate_daily_insights(user_id)
 
-        # Productivity recommendation
-        task_data = raw.get("tasks", {})
-        if task_data:
-            completion_rate = task_data.get("completion_rate", 0)
-            insights.append({
-                "domain": "productivity",
-                "title": f"Tasks {int(completion_rate)}% complete",
-                "detail": "Focus on your top priority task first thing tomorrow." if completion_rate < 70 else "Great progress! Keep the momentum going.",
-                "icon": "target",
-            })
-        else:
-            insights.append({
-                "domain": "productivity",
-                "title": "Set your goals",
-                "detail": "Add tasks to track your productivity this week.",
-                "icon": "target",
-            })
+        # Store in daily_insights collection
+        await db.daily_insights.update_one(
+            {"user_id": user_id, "date": today_str},
+            {"$set": {
+                "user_id": user_id,
+                "date": today_str,
+                "insights": insights,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }},
+            upsert=True,
+        )
 
-        # Detect and append correlation insights
-        correlation_insights = await detect_correlations(db, user_id)
-        for corr in correlation_insights:
-            insights.append({
-                "domain": corr.get("domain", "correlation"),
-                "title": corr["title"],
-                "detail": corr["detail"],
-                "icon": corr.get("icon", "alert-circle"),
-            })
-
-        return insights
+        return {
+            "insights": insights,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "date": today_str,
+        }
 
     except Exception as e:
         logger.error(f"Error generating daily insights for {user_id}: {e}")
-        # Fallback to basic insights on error
-        return [
-            {"domain": "finance", "title": "Track your spending", "detail": "Log expenses to get personalized tips.", "icon": "wallet"},
-            {"domain": "wellness", "title": "Check in today", "detail": "Log your mood for wellness insights.", "icon": "heart"},
-            {"domain": "productivity", "title": "Stay on track", "detail": "Review your goals for the week.", "icon": "target"},
-        ]
+        # Fallback to basic insights on error — still exactly 3
+        return {
+            "insights": [
+                {"domain": "finance", "title": "Track your spending", "detail": "Log expenses to get personalized tips.", "icon": "wallet", "data_reference": "N/A"},
+                {"domain": "wellness", "title": "Check in today", "detail": "Log your mood for wellness insights.", "icon": "heart", "data_reference": "N/A"},
+                {"domain": "productivity", "title": "Stay on track", "detail": "Review your goals for the week.", "icon": "target", "data_reference": "N/A"},
+            ],
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        }
+
+
+@api_router.get("/insights/tomorrow-plan")
+async def tomorrow_plan(user_id: str = Depends(get_current_user)):
+    """
+    Return 3 actions for tomorrow ordered by lowest domain score first.
+    Only available after 8 PM in user's local timezone.
+    Requirements: 10.4
+    """
+    user_now = await _get_user_local_now(user_id)
+
+    if user_now.hour < 20:
+        return {
+            "available": False,
+            "message": "Tomorrow's Plan is available after 8:00 PM.",
+            "current_hour": user_now.hour,
+        }
+
+    # Get life-balance scores
+    balance = await _compute_life_balance_scores(user_id)
+    domains = balance.get("domains", [])
+
+    # Sort by score ascending (lowest first)
+    sorted_domains = sorted(domains, key=lambda d: d["score"])
+
+    # Generate 3 actions for the 3 lowest-scoring domains
+    tomorrow_date = (user_now + timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # Check if plan already exists for tomorrow
+    existing_plan = await db.tomorrow_plans.find_one(
+        {"user_id": user_id, "date": tomorrow_date}, {"_id": 0}
+    )
+    if existing_plan and existing_plan.get("actions"):
+        return {
+            "available": True,
+            "date": tomorrow_date,
+            "actions": existing_plan["actions"],
+            "completed": existing_plan.get("completed", False),
+        }
+
+    # Generate actions for the 3 lowest domains
+    actions = []
+    action_templates = {
+        "Finance": [
+            "Review your top spending category and set a daily limit",
+            "Check savings progress and add ₹100 to your goal",
+            "Plan tomorrow's meals to reduce food spending",
+        ],
+        "Wellness": [
+            "Do a 5-minute morning breathing exercise",
+            "Set a bedtime alarm for 11 PM tonight",
+            "Take a 15-minute walk between classes",
+        ],
+        "Academics": [
+            "Complete your highest-priority task first thing",
+            "Do a 25-minute focused study session",
+            "Review and plan tomorrow's study schedule",
+        ],
+        "Social": [
+            "Message a study group or join a new one",
+            "Plan a group study session this week",
+            "Check in with a friend you haven't talked to",
+        ],
+        "Self-Care": [
+            "Write a 3-sentence journal entry before bed",
+            "Do a 10-minute exercise or stretch session",
+            "Take a screen break: 5 min away from devices",
+        ],
+    }
+
+    import random
+    for i, domain in enumerate(sorted_domains[:3]):
+        domain_name = domain["name"]
+        templates = action_templates.get(domain_name, ["Improve this area of your life"])
+        action_text = random.choice(templates)
+        actions.append({
+            "id": str(uuid.uuid4()),
+            "domain": domain_name,
+            "domain_score": domain["score"],
+            "action": action_text,
+            "order": i + 1,
+            "completed": False,
+        })
+
+    # Store the plan
+    await db.tomorrow_plans.update_one(
+        {"user_id": user_id, "date": tomorrow_date},
+        {"$set": {
+            "user_id": user_id,
+            "date": tomorrow_date,
+            "actions": actions,
+            "completed": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+
+    return {
+        "available": True,
+        "date": tomorrow_date,
+        "actions": actions,
+        "completed": False,
+    }
+
+
+@api_router.post("/insights/complete-actions")
+async def complete_actions(user_id: str = Depends(get_current_user)):
+    """
+    Mark yesterday's 3 actions as complete and award 25 XP.
+    Requirements: 10.5
+    """
+    user_now = await _get_user_local_now(user_id)
+    yesterday_str = (user_now - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # Find yesterday's plan
+    plan = await db.tomorrow_plans.find_one(
+        {"user_id": user_id, "date": yesterday_str}, {"_id": 0}
+    )
+
+    if not plan:
+        raise HTTPException(404, "No plan found for yesterday.")
+
+    if plan.get("completed"):
+        return {
+            "success": False,
+            "message": "Yesterday's actions were already marked complete.",
+            "xp_awarded": 0,
+        }
+
+    actions = plan.get("actions", [])
+    if len(actions) < 3:
+        raise HTTPException(400, "Plan does not have 3 actions.")
+
+    # Mark all actions complete
+    for action in actions:
+        action["completed"] = True
+
+    await db.tomorrow_plans.update_one(
+        {"user_id": user_id, "date": yesterday_str},
+        {"$set": {"actions": actions, "completed": True, "completed_at": datetime.now(timezone.utc).isoformat()}},
+    )
+
+    # Award 25 XP
+    xp_result = await gamification_service.award_xp(user_id, "plan_complete")
+
+    return {
+        "success": True,
+        "message": "All 3 actions marked complete! +25 XP earned.",
+        "xp_awarded": 25,
+        "gamification": xp_result,
+    }
 
 
 @api_router.get("/insights/weekly")

@@ -19,9 +19,9 @@ export default function ChatCenter() {
   const [insights, setInsights] = useState([]);
   const [weekly, setWeekly] = useState(null);
   useEffect(() => {
-    api.get("/life-balance").then((r) => setLb(r.data));
-    api.get("/insights/daily").then((r) => setInsights(r.data));
-    api.get("/insights/weekly").then((r) => setWeekly(r.data));
+    api.get("/life-balance").then((r) => setLb(r.data)).catch(() => { });
+    api.get("/insights/daily").then((r) => setInsights(Array.isArray(r.data) ? r.data : r.data?.insights || [])).catch(() => { });
+    api.get("/insights/weekly").then((r) => setWeekly(r.data)).catch(() => { });
   }, []);
   return (
     <div className="flex-1 overflow-auto scroll-area pb-4">

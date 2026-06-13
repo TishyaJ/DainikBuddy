@@ -24,6 +24,7 @@ GAMIFICATION_COLLECTION = "gamification"
 XP_MOOD_CHECKIN = 10
 XP_EXPENSE_LOG = 5
 XP_JOURNAL_ENTRY = 10
+XP_PLAN_COMPLETE = 25
 
 # Daily caps
 MAX_EXPENSE_XP_PER_DAY = 10  # max 2 expense logs worth of XP per day
@@ -169,6 +170,11 @@ async def award_xp(user_id: str, action: str) -> dict:
         if not daily_log.get("journal_entry", False):
             xp_earned = XP_JOURNAL_ENTRY
             daily_log["journal_entry"] = True
+
+    elif action == "plan_complete":
+        if not daily_log.get("plan_complete", False):
+            xp_earned = XP_PLAN_COMPLETE
+            daily_log["plan_complete"] = True
 
     if xp_earned > 0:
         doc["total_xp"] = doc.get("total_xp", 0) + xp_earned

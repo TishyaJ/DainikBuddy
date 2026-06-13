@@ -194,8 +194,8 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - **Property 34: Default Category Fallback** — Generate unmatched merchants, verify "misc" assignment
     - **Validates: Requirements 11.1, 11.2, 11.3, 11.4, 11.5**
 
-- [ ] 10. Enhanced Data Analytics and Trend Detection
-  - [ ] 10.1 Create backend analytics service and router
+- [x] 10. Enhanced Data Analytics and Trend Detection
+  - [x] 10.1 Create backend analytics service and router
     - Create `backend/analytics_service.py` with trend computation (weekly/monthly), anomaly detection, monthly report generation, recovery plan generation
     - Create `backend/analytics_router.py` with `/api/analytics/trends`, `/api/analytics/anomalies`, `/api/analytics/monthly-report`, `/api/analytics/recovery-plan`
     - Weekly trends: require minimum 7 days of data; monthly: minimum 28 days
@@ -210,7 +210,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - **Property 20: Habit Decline Triggers Recovery Plan** — Generate declining habit data, verify plan generation with ≤3 suggestions
     - **Validates: Requirements 6.1, 6.2, 6.3, 6.5**
 
-  - [ ] 10.3 Create frontend analytics components
+  - [x] 10.3 Create frontend analytics components
     - Create `frontend/src/pages/TrendsView.jsx` with interactive line/bar charts, time range selector (7d/30d/90d)
     - Create `frontend/src/components/AnomalyFlag.jsx` for inline spending anomaly indicators
     - Create `frontend/src/components/MonthlyReport.jsx` for financial health report card display
@@ -218,10 +218,10 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - Add Trends view accessible from Daily Hub
     - _Requirements: 6.2, 6.3, 6.6_
 
-- [ ] 11. Checkpoint - Ensure all tests pass
+- [x] 11. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 12. Daily Insights and Life-Balance Scoring
+- [x] 12. Daily Insights and Life-Balance Scoring
   - [ ] 12.1 Create backend life-balance and daily insights endpoints
     - Create/update `/api/life-balance` endpoint with 5-domain radar scores (Finance, Wellness, Academics, Social, Self-Care), each integer 0–100
     - Compute from user-inputted data: Finance from expense-to-budget ratio + savings progress, Wellness from mood avg + sleep quality, Academics from task completion + study time, Social from group activity, Self-Care from exercise frequency + journal frequency
@@ -241,7 +241,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - **Property 31: Partial Data Score Computation** — Verify computation with <7 days includes day count indicator
     - **Validates: Requirements 10.1, 10.2, 10.3, 10.4, 10.6**
 
-  - [ ] 12.3 Update frontend Daily Hub with radar chart and insight cards
+  - [x] 12.3 Update frontend Daily Hub with radar chart and insight cards
     - Add 5-domain life-balance radar chart to Daily Hub AI Summary tab (using recharts)
     - Render 3 AI-generated insight cards from `/api/insights/daily`
     - Highlight domains scoring <40 in red with actionable step
@@ -252,7 +252,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 12.10_
 
 - [ ] 13. Voice Input for Journal Entries
-  - [ ] 13.1 Create frontend voice input module and component
+  - [-] 13.1 Create frontend voice input module and component
     - Create `frontend/src/lib/voiceInput.js` wrapping Web Speech API with `isSupported()`, `start()`, `stop()` interface
     - Create `frontend/src/components/VoiceInputButton.jsx` with mic icon and pulsing recording indicator animation
     - Implement real-time transcript display in journal text area (within 500ms)

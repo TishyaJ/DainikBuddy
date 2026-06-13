@@ -23,6 +23,7 @@ import RegisterPage from "./pages/RegisterPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import StudyGroups from "./pages/StudyGroups";
 import GroupDetail from "./components/GroupDetail";
+import TrendsView from "./pages/TrendsView";
 import { api } from "./lib/api";
 import { Loader2 } from "lucide-react";
 
@@ -33,6 +34,7 @@ const ROUTE_DOMAIN = {
   "/discover": "discover",
   "/chat": "helper",
   "/profile": "helper",
+  "/trends": "finance",
 };
 
 /** Wrapper that redirects unauthenticated users to /login */
@@ -111,6 +113,7 @@ const Shell = () => {
           <Route path="/notifications/preferences" element={<NotificationPreferences />} />
           <Route path="/social" element={<StudyGroups />} />
           <Route path="/social/group/:groupId" element={<GroupDetail />} />
+          <Route path="/trends" element={<TrendsView />} />
         </Routes>
       )}
       {showNav && <BottomNav />}

@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { Header } from "../components/Header";
 import { SubTabs, Card, InsightCard } from "../components/SubTabs";
 import { Tasks } from "../components/Tasks";
-import { Smile, Frown, Meh, Heart, Zap, Mic, Camera, Plus, Target, Sparkles } from "lucide-react";
+import { Smile, Frown, Meh, Heart, Zap, Mic, Camera, Plus, Target, Sparkles, TrendingUp, AlertTriangle, RefreshCw, CheckCircle2 } from "lucide-react";
 import { api } from "../lib/api";
-import { BarChart, Bar, XAxis, ResponsiveContainer, Cell } from "recharts";
+import { BarChart, Bar, XAxis, ResponsiveContainer, Cell, RadarChart, PolarGrid, PolarAngleAxis, Radar } from "recharts";
+import { motion, AnimatePresence } from "framer-motion";
+import { useGamification } from "../context/GamificationContext";
 
 const MOODS = [
   { key: "great", emoji: "😄", label: "Great" },
@@ -227,39 +230,287 @@ const Goals = () => {
 
 const Summary = () => {
   const [lb, setLb] = useState(null);
+  const [lbError, setLbError] = useState(false);
   const [insights, setInsights] = useState([]);
-  useEffect(() => {
-    api.get("/life-balance").then((r) => setLb(r.data));
-    api.get("/insights/daily").then((r) => setInsights(r.data));
+  const [insightsError, setInsightsError] = useState(false);
+  const [plan, setPlan] = useState(null);
+  const [planError, setPlanError] = useState(false);
+  const [checkedActions, setCheckedActions] = useState([false, false, false]);
+  const [celebrating, setCelebrating] = useState(false);
+  const [xpAwarded, setXpAwarded] = useState(false);
+  const { refresh: refreshGamification } = useGamification();
+
+  const fetchLifeBalance = useCallback(async () => {
+    try {
+      setLbError(false);
+      const res = await api.get("/life-balance");
+      setLb(res.data);
+    } catch {
+      setLbError(true);
+    }
   }, []);
+
+  const fetchInsights = useCallback(async () => {
+    try {
+      setInsightsError(false);
+      const res = await api.get("/insights/daily");
+      setInsights(Array.isArray(res.data) ? res.data : res.data?.insights || []);
+    } catch {
+      setInsightsError(true);
+    }
+  }, []);
+
+  const fetchPlan = useCallback(async () => {
+    try {
+      setPlanError(false);
+      const res = await api.get("/insights/tomorrow-plan");
+      setPlan(res.data);
+    } catch {
+      setPlanError(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLifeBalance();
+    fetchInsights();
+    fetchPlan();
+  }, [fetchLifeBalance, fetchInsights, fetchPlan]);
+
+  const isAfter8PM = new Date().getHours() >= 20;
+
+  const handleActionToggle = async (index) => {
+    if (xpAwarded) return;
+    const updated = [...checkedActions];
+    updated[index] = !updated[index];
+    setCheckedActions(updated);
+
+    if (updated.every(Boolean)) {
+      try {
+        const res = await api.post("/insights/complete-actions");
+        if (res.data.success) {
+          setCelebrating(true);
+          setXpAwarded(true);
+          refreshGamification();
+          setTimeout(() => setCelebrating(false), 3000);
+        }
+      } catch {
+        // Revert if API fails
+        updated[index] = !updated[index];
+        setCheckedActions([...updated]);
+      }
+    }
+  };
+
+  const radarData = lb?.domains?.map((d) => ({
+    domain: d.name,
+    score: d.score,
+    fullMark: 100,
+  })) || [];
+
+  const lowDomains = lb?.domains?.filter((d) => d.score < 40) || [];
+
   return (
     <div className="mx-5 mt-4 space-y-3">
-      <Card>
-        <h3 className="font-display font-bold text-lg">Today's AI Snapshot</h3>
-        <p className="text-xs text-slate-500 mt-1">Cross-domain summary for Alex</p>
-        {lb && (
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {lb.domains.map((d) => (
-              <div key={d.name} className="p-3 rounded-xl bg-slate-50">
-                <div className="text-[10px] uppercase text-slate-500 font-semibold">{d.name}</div>
-                <div className="text-2xl font-bold font-display mt-0.5">{d.score}</div>
-              </div>
+      {/* Celebration Animation Overlay */}
+      <AnimatePresence>
+        {celebrating && (
+          <motion.div
+            data-testid="celebration-overlay"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ duration: 0.4 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          >
+            <motion.div
+              initial={{ scale: 0.5, rotate: -10 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: "spring", stiffness: 200, damping: 15 }}
+              className="bg-white rounded-3xl p-8 text-center shadow-2xl max-w-[300px]"
+            >
+              <motion.div
+                animate={{ scale: [1, 1.3, 1] }}
+                transition={{ repeat: Infinity, duration: 1.2 }}
+                className="text-6xl mb-3"
+              >
+                🎉
+              </motion.div>
+              <h3 className="font-display font-bold text-xl text-slate-900">All Done!</h3>
+              <p className="text-sm text-slate-600 mt-1">You completed tomorrow's plan</p>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="mt-3 inline-flex items-center gap-1 px-4 py-2 rounded-full bdy-bg text-white font-bold text-lg"
+              >
+                +25 XP ⭐
+              </motion.div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Partial Data Indicator */}
+      {lb && lb.partial_data && (
+        <div data-testid="partial-data-indicator" className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
+          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+          <span className="text-xs text-amber-700 font-medium">
+            Limited data available ({lb.days_used || "< 7"} days). Scores will improve with more entries.
+          </span>
+        </div>
+      )}
+
+      {/* Life-Balance Radar Chart */}
+      {lbError ? (
+        <Card data-testid="lb-error">
+          <div className="flex flex-col items-center py-4 gap-2">
+            <AlertTriangle className="w-6 h-6 text-rose-500" />
+            <p className="text-sm text-slate-600">Could not load life-balance data</p>
+            <button
+              onClick={fetchLifeBalance}
+              data-testid="lb-retry-btn"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bdy-bg text-white active:scale-95 transition"
+            >
+              <RefreshCw className="w-3 h-3" /> Retry
+            </button>
+          </div>
+        </Card>
+      ) : (
+        <Card data-testid="life-balance-radar">
+          <h3 className="font-display font-bold text-lg">Life Balance</h3>
+          <p className="text-xs text-slate-500 mt-0.5">5-domain overview (last 7 days)</p>
+          {lb && radarData.length > 0 && (
+            <div className="mt-3 flex justify-center" data-testid="radar-chart-container">
+              <ResponsiveContainer width="100%" height={220}>
+                <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
+                  <PolarGrid stroke="#e2e8f0" />
+                  <PolarAngleAxis
+                    dataKey="domain"
+                    tick={{ fontSize: 11, fill: "#64748b", fontWeight: 600 }}
+                  />
+                  <Radar
+                    name="Score"
+                    dataKey="score"
+                    stroke="var(--bdy)"
+                    fill="var(--bdy)"
+                    fillOpacity={0.25}
+                    strokeWidth={2}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          {!lb && (
+            <div className="h-[220px] flex items-center justify-center">
+              <div className="w-6 h-6 border-2 border-slate-300 border-t-[color:var(--bdy)] rounded-full animate-spin" />
+            </div>
+          )}
+          {/* Low domain highlights */}
+          {lowDomains.length > 0 && (
+            <div className="mt-3 space-y-2" data-testid="low-domains">
+              {lowDomains.map((d) => (
+                <div
+                  key={d.name}
+                  className="flex items-start gap-2 p-2.5 rounded-xl bg-rose-50 border border-rose-200"
+                  data-testid={`low-domain-${d.name.toLowerCase()}`}
+                >
+                  <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-rose-700">{d.name}</span>
+                      <span className="text-xs font-semibold text-rose-500">{d.score}/100</span>
+                    </div>
+                    {d.actionable_step && (
+                      <p className="text-xs text-rose-600 mt-0.5 leading-relaxed">{d.actionable_step}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* AI Insight Cards */}
+      {insightsError ? (
+        <Card data-testid="insights-error">
+          <div className="flex flex-col items-center py-4 gap-2">
+            <AlertTriangle className="w-6 h-6 text-rose-500" />
+            <p className="text-sm text-slate-600">Could not load daily insights</p>
+            <button
+              onClick={fetchInsights}
+              data-testid="insights-retry-btn"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bdy-bg text-white active:scale-95 transition"
+            >
+              <RefreshCw className="w-3 h-3" /> Retry
+            </button>
+          </div>
+        </Card>
+      ) : (
+        insights.length > 0 && (
+          <div className="space-y-2" data-testid="daily-insights">
+            {insights.map((i, idx) => (
+              <InsightCard key={idx} icon={Sparkles} title={i.title} text={i.detail} />
             ))}
           </div>
-        )}
-      </Card>
-      {insights.map((i, idx) => (
-        <InsightCard key={idx} icon={Sparkles} title={i.title} text={i.detail} />
-      ))}
-      <Card className="bdy-gradient text-white">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5" />
-          <h3 className="font-display font-bold text-lg">Tomorrow's Advice</h3>
-        </div>
-        <p className="text-sm mt-2 text-white/90">
-          Start your day with the harder subject. Take a 5-min walk after lunch. Lights out by 11:30pm to recover sleep.
-        </p>
-      </Card>
+        )
+      )}
+
+      {/* Tomorrow's Plan Card (visible after 8 PM) */}
+      {isAfter8PM && !planError && plan?.available && plan.actions?.length > 0 && (
+        <Card className="bdy-gradient text-white" data-testid="tomorrow-plan-card">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5" />
+            <h3 className="font-display font-bold text-lg">Tomorrow's Plan</h3>
+          </div>
+          <p className="text-xs text-white/70 mt-1">3 actions based on your lowest-scoring domains</p>
+          <div className="mt-3 space-y-2">
+            {plan.actions.map((action, idx) => (
+              <label
+                key={idx}
+                data-testid={`plan-action-${idx}`}
+                className={`flex items-start gap-3 p-3 rounded-xl cursor-pointer transition ${checkedActions[idx] ? "bg-white/25" : "bg-white/10"
+                  } ${xpAwarded ? "opacity-70 pointer-events-none" : ""}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={checkedActions[idx]}
+                  onChange={() => handleActionToggle(idx)}
+                  className="mt-0.5 w-4 h-4 rounded accent-white"
+                  data-testid={`plan-checkbox-${idx}`}
+                />
+                <div className="flex-1">
+                  <div className="text-sm font-semibold">{action.action}</div>
+                  <div className="text-[10px] text-white/70 mt-0.5 uppercase font-semibold">{action.domain}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+          {xpAwarded && (
+            <div className="mt-3 flex items-center gap-2 text-sm font-semibold">
+              <CheckCircle2 className="w-4 h-4" />
+              <span>+25 XP earned!</span>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Tomorrow's Plan Error */}
+      {isAfter8PM && planError && (
+        <Card data-testid="plan-error">
+          <div className="flex flex-col items-center py-4 gap-2">
+            <AlertTriangle className="w-6 h-6 text-rose-500" />
+            <p className="text-sm text-slate-600">Could not load tomorrow's plan</p>
+            <button
+              onClick={fetchPlan}
+              data-testid="plan-retry-btn"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bdy-bg text-white active:scale-95 transition"
+            >
+              <RefreshCw className="w-3 h-3" /> Retry
+            </button>
+          </div>
+        </Card>
+      )}
     </div>
   );
 };
@@ -276,6 +527,7 @@ const TABS = [
 export default function DailyHub() {
   const [tab, setTab] = useState("mood");
   const [profile, setProfile] = useState({ name: "Alex" });
+  const nav = useNavigate();
   useEffect(() => { api.get("/profile").then((r) => setProfile(r.data)); }, []);
   const Active = TABS.find((t) => t.key === tab).C;
   return (
@@ -291,6 +543,25 @@ export default function DailyHub() {
           <div className="text-4xl">☁️</div>
         </div>
       </Card>
+      {/* Trends quick-access button */}
+      <div className="px-5 mt-3">
+        <button
+          onClick={() => nav("/trends")}
+          data-testid="trends-nav-btn"
+          className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-white shadow-sm border border-slate-100 active:scale-[0.98] transition"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bdy-bg text-white flex items-center justify-center">
+              <TrendingUp className="w-4 h-4" />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-slate-900">View Trends</p>
+              <p className="text-[11px] text-slate-500">Track spending, mood & habits</p>
+            </div>
+          </div>
+          <span className="text-xs font-semibold text-[color:var(--bdy)]">→</span>
+        </button>
+      </div>
       <SubTabs tabs={TABS} active={tab} onChange={setTab} testid="daily-tab" />
       <Active />
     </div>

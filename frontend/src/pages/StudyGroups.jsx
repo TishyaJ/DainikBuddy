@@ -77,7 +77,7 @@ const StudyGroups = () => {
     };
 
     return (
-        <div className="pb-6">
+        <div className="flex-1 overflow-auto scroll-area pb-6">
             {/* Header */}
             <div className="px-5 pt-6 pb-3">
                 <div className="flex items-center gap-3 mb-1">

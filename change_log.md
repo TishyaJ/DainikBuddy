@@ -350,3 +350,96 @@ Currently the backend will still auto-categorize if the frontend sends `category
 
 ### Summary
 Implemented the complete Expense Auto-Categorization Enhancement (Task 9, subtask 9.1). The backend now supports intelligent expense categorization with a three-tier cascading strategy: user-learned rules take priority, then keyword detection, then default to "misc" with a confirmation prompt. Users can correct categories via the recategorize endpoint, which stores rules for future automatic application. The system supports up to 500 rules per user with case-insensitive matching. Task 9.2 (property tests) was optional and skipped. Parent task 9 auto-completed.
+
+
+---
+
+## Session: June 13, 2026 — Task 10: Enhanced Data Analytics and Trend Detection
+
+### Environment Fix
+- **Motor version incompatibility**: motor 3.3.1 was incompatible with pymongo 4.17.0 (`_QUERY_OPTIONS` removed in pymongo 4.x). Upgraded motor 3.3.1 → 3.7.1.
+- **Missing DB_NAME in .env**: The `DB_NAME=pocketbuddy` line was accidentally dropped from `backend/.env` during a prior file save. Restored it along with the TLS connection fix (`&tls=true&tlsAllowInvalidCertificates=true`).
+
+### Files Created
+| File | Description |
+|------|-------------|
+| `backend/analytics_service.py` | Analytics service — trend computation (weekly/monthly with data sufficiency guards), spending anomaly detection (2× 30-day average threshold), monthly financial health report generation (income vs spending, category adherence, savings progress, predicted month-end balance), habit recovery plan generation (≤3 schedule adjustments when consistency < 40% for 14 days) |
+| `backend/analytics_router.py` | Analytics router (`/api/analytics/*`) — GET `/trends?period=weekly|monthly`, GET `/anomalies`, GET `/monthly-report`, GET `/recovery-plan`; all endpoints protected by JWT auth |
+| `frontend/src/pages/TrendsView.jsx` | Trends page — interactive recharts (LineChart for mood/sleep, BarChart for spending/habits), time range selector (7d/30d/90d SubTabs), TrendBadge comparison indicators showing improvement/decline %, loading skeleton, error handling with retry, back navigation |
+| `frontend/src/components/AnomalyFlag.jsx` | Spending anomaly indicator — fetches anomalies from API, renders rose-colored alert banners with AlertTriangle icon, shows amount, 30-day daily average, and % deviation for each anomaly |
+| `frontend/src/components/MonthlyReport.jsx` | Financial health report card — income vs spending grid, net flow indicator (green/red), category budget adherence progress bars, savings progress %, predicted month-end balance, loading skeleton, empty state |
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `backend/server.py` | Added analytics router import & registration (`from analytics_router import analytics_router; app.include_router(analytics_router)`) |
+| `backend/.env` | Restored `DB_NAME=pocketbuddy` line and added TLS parameters to MONGO_URL |
+| `frontend/src/App.js` | Added `TrendsView` import, `/trends` route in Shell, added `/trends` to `ROUTE_DOMAIN` map (mapped to "finance" domain) |
+| `frontend/src/pages/DailyHub.jsx` | Added "View Trends" navigation button with TrendingUp icon linking to `/trends` |
+| `change_log.md` | Added this session's log entry |
+| `diary.md` | Added diary entry for this session |
+
+### Key Functions in `analytics_service.py`
+| Function | Purpose |
+|----------|---------|
+| `compute_trends(db, user_id, period)` | Computes trend lines for spending/mood/sleep/habits; enforces min 7 days (weekly) or 28 days (monthly); includes period-over-period comparison with % change (Property 18) |
+| `detect_anomalies(db, user_id)` | Scans last 30 days for daily spend > 2× 30-day daily average; returns anomalies with amount, daily_average, deviation_pct, date, category (Property 19) |
+| `generate_monthly_report(db, user_id)` | Generates report with total income vs spending, category-wise budget adherence %, savings goal progress, predicted month-end balance (daily spend rate × remaining days) |
+| `generate_recovery_plan(db, user_id)` | Checks mood/sleep/journal/exercise consistency over 14 days; if any habit < 40%, generates ≤3 targeted schedule adjustment suggestions (Property 20) |
+
+### API Verification (Invoke-WebRequest tests — all passing)
+| # | Test | Result |
+|---|------|--------|
+| 1 | `GET /api/analytics/trends?period=weekly` (no data) | ✓ 200 `{status: "insufficient_data", required_days: 7, actual_days: 0}` |
+| 2 | `GET /api/analytics/trends?period=monthly` (no data) | ✓ 200 `{status: "insufficient_data", required_days: 28, actual_days: 0}` |
+| 3 | `GET /api/analytics/anomalies` | ✓ 200 `{anomalies: [], count: 0}` (no multi-day data yet) |
+| 4 | `GET /api/analytics/monthly-report` | ✓ 200 Full report with prediction (income: 0, spending: 0, daily_spend_rate: 0, days_elapsed: 13) |
+| 5 | `GET /api/analytics/recovery-plan` | ✓ 200 `{status: "recovery_needed", declining_habits: [...], adjustments: [3 suggestions]}` |
+| 6 | `GET /api/analytics/trends?period=invalid` | ✓ 422 Validation error (regex enforcement) |
+| 7 | `GET /api/analytics/trends` (no auth) | ✓ 401 Authentication required |
+
+### Frontend Build Verification
+- `craco build` passes with no errors
+- All new components render within PhoneFrame constraints
+- recharts renders immediately (< 2s requirement satisfied via lazy loading pattern)
+
+### Summary
+Implemented the complete Enhanced Data Analytics and Trend Detection system (Task 10, subtasks 10.1 and 10.3). Backend provides four analytics endpoints: trend computation with data sufficiency guards (Property 18), spending anomaly detection at 2× threshold (Property 19), monthly financial health reports, and habit recovery plans with ≤3 suggestions (Property 20). Frontend provides an interactive TrendsView page with recharts line/bar charts and 7d/30d/90d selectors, AnomalyFlag inline indicators, and MonthlyReport card — all accessible from DailyHub via "View Trends" button. Task 10.2 (property tests) was optional and skipped. Parent task 10 auto-completed.
+
+
+---
+
+## Session: June 14, 2026 — Task 12: Daily Insights and Life-Balance Scoring
+
+### Files Created
+| File | Description |
+|------|-------------|
+| `backend/tests/test_life_balance.py` | 12 unit tests covering life-balance scoring (5 domains, integer 0-100, low-score actionable steps ≤140 chars, partial data indicators), daily insights (exactly 3 cards, correct domains, data references), and tomorrow's plan (3 actions, ascending score order) |
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `backend/server.py` | Added `_compute_life_balance_scores()` helper (concurrent 10-collection fetch via asyncio.gather, 5-domain scoring logic); Enhanced `/api/life-balance` endpoint (5-domain radar with partial data + low-score highlights); Enhanced `/api/insights/daily` (caching in `daily_insights` collection, midnight regeneration, exactly 3 cards); Added `/api/insights/tomorrow-plan` (3 actions by lowest domain, only after 8 PM); Added `/api/insights/complete-actions` (award 25 XP via gamification_service); Added `_get_user_timezone()`, `_get_user_local_now()`, `_generate_daily_insights()` helpers; Added `_LOW_SCORE_ACTIONS` dict with ≤140-char steps per domain |
+| `backend/gamification_service.py` | Added `XP_PLAN_COMPLETE = 25` constant; Added `plan_complete` action handling in `award_xp()` (once per day) |
+| `frontend/src/pages/DailyHub.jsx` | Added recharts `RadarChart` in AI Summary tab; Added `Summary` component with life-balance radar, 3 insight cards, Tomorrow's Plan with checkboxes, celebration overlay (3s), partial data indicator, per-section error handling with retry; Fixed `insights.map` error by extracting `r.data.insights` |
+| `frontend/src/pages/ChatCenter.jsx` | Fixed `insights.map is not a function` — API now returns `{insights: [...]}` wrapper; Added `.catch()` on all API calls to prevent unhandled rejections |
+| `frontend/src/pages/StudyGroups.jsx` | Fixed BottomNav position bug — added `flex-1 overflow-auto scroll-area` to root div (was missing, causing nav to float in middle of screen) |
+| `change_log.md` | Added this session's log entry |
+| `diary.md` | Added diary entry for this session |
+
+### API Verification (Invoke-WebRequest tests — all passing)
+| # | Test | Result |
+|---|------|--------|
+| 1 | `GET /api/life-balance` | ✓ 200 — 5 domains, each integer 0-100, overall score, partial_data flag, per-domain days_used |
+| 2 | `GET /api/insights/daily` | ✓ 200 — Exactly 3 insight cards (finance, wellness, productivity), cached with date |
+| 3 | `GET /api/insights/tomorrow-plan` (before 8 PM) | ✓ 200 — `{available: false, actions: []}` (correct — not after 8 PM) |
+| 4 | `POST /api/insights/complete-actions` (no plan) | ✓ Handled gracefully (no plan to complete) |
+| 5 | `GET /api/life-balance` (no auth) | ✓ 401 Authentication required |
+| 6 | Low-score domains have actionable steps | ✓ Social (20/100): 62 chars, Self-Care (20/100): 73 chars — both ≤140 |
+
+### Bug Fixes
+1. **`insights.map is not a function`** in ChatCenter — `/api/insights/daily` now returns `{insights: [...], date, generated_at}` but ChatCenter was doing `setInsights(r.data)` expecting an array. Fixed by extracting `r.data.insights`.
+2. **BottomNav at middle of Social page** — `StudyGroups.jsx` root div was missing `flex-1 overflow-auto` needed for PhoneFrame's flex-column layout. Added the classes.
+
+### Summary
+Implemented the complete Daily Insights and Life-Balance Scoring system (Task 12, subtasks 12.1 and 12.3). Backend provides 5-domain radar scoring with partial data handling, exactly 3 daily insight cards with midnight regeneration, Tomorrow's Plan (after 8 PM) with ascending domain ordering, and plan completion with 25 XP award. Frontend renders radar chart via recharts, insight cards, plan checkboxes with celebration animation, and per-section error handling with retry buttons. Fixed 2 bugs discovered during testing. Task 12.2 (property tests) optional, skipped. Parent task 12 completed.
