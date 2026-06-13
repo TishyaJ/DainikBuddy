@@ -142,11 +142,11 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - Display empty state "No notifications yet" when no nudges exist
     - _Requirements: 3.6, 3.8, 3.9, 12.8_
 
-- [ ] 7. Checkpoint - Ensure all tests pass
+- [x] 7. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 8. Social Features and Peer Accountability
-  - [ ] 8.1 Create backend social module
+- [x] 8. Social Features and Peer Accountability
+  - [x] 8.1 Create backend social module
     - Create `backend/social_service.py` with study group creation, invite code generation (6 alphanumeric chars), join/leave logic
     - Create `backend/social_router.py` with `/api/social/groups`, `/api/social/groups/{id}`, `/api/social/groups/{id}/join`, `/api/social/groups/{id}/leave`, `/api/social/groups/{id}/goals`, `/api/social/challenges`, `/api/social/challenges/{id}/join`
     - Enforce max 20 members per group
@@ -166,7 +166,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - **Property 17: Leave Group Data Integrity** — Verify removal from group + XP/badges unchanged
     - **Validates: Requirements 5.1, 5.4, 5.5, 5.8, 5.9**
 
-  - [ ] 8.3 Create frontend social components
+  - [x] 8.3 Create frontend social components
     - Create `frontend/src/pages/StudyGroups.jsx` with group list, create group form, join by invite code
     - Create `frontend/src/components/StudyGroupCard.jsx` with member avatars preview
     - Create `frontend/src/components/GroupDetail.jsx` with members, shared goals, activity feed (20 recent items)

@@ -244,3 +244,58 @@ Implemented the complete AI Buddy Personality and Conversation Memory system (Ta
 
 ### Summary
 Implemented the complete Smart Notifications and Proactive Nudges system (Task 6, subtasks 6.1 and 6.3). Backend provides nudge generation with budget warnings, wellness nudges, check-in reminders, and streak celebrations — all gated by user preferences, high-stress rate limiting, and dismissal-based frequency adaptation. Frontend provides a full notification UI: bell with badge in header, notification center with category icons and relative timestamps, preferences page with toggles, and a context provider with 60-second polling and push notification subscription. All 7 curl verification tests passing against live server.
+
+
+---
+
+## Session: June 13, 2026 — Task 7 (Checkpoint) & Task 8: Social Features
+
+### Task 7: Checkpoint Results
+- **153 tests pass** in 15.69 seconds
+- 1 warning (starlette multipart deprecation — not our code)
+- No failures, no errors
+
+### Files Created (Task 8)
+| File | Description |
+|------|-------------|
+| `backend/social_service.py` | Social service — study group CRUD, 6-char alphanumeric invite codes (unique), join/leave with max 20 members, shared goals with leaderboard (sorted by completion % desc), milestone notifications (25/50/75/100%) broadcast to other members, community challenges (Monday 00:00 → Sunday 23:59 UTC), challenge completion awards 50 XP + badge, privacy enforcement (only display_name/level/progress visible), activity feed logging |
+| `backend/social_router.py` | Social router (`/api/social/*`) — GET/POST groups, GET group detail, POST join (by invite code or ID), POST leave, GET/POST goals, PATCH goal progress, GET challenges, POST challenge create, POST challenge join, PATCH challenge progress |
+| `frontend/src/pages/StudyGroups.jsx` | Social main page — "My Groups" and "Challenges" SubTabs, group list with StudyGroupCards, Create Group modal (name input), Join Group modal (InviteCodeInput), empty states, loading states |
+| `frontend/src/components/StudyGroupCard.jsx` | Group card — name, member count, first 4 member avatars (gradient circles with initials), invite code with copy button, click navigates to group detail |
+| `frontend/src/components/GroupDetail.jsx` | Full group view — members list (display_name + level as pills), shared goals via SharedGoalLeaderboard, activity feed (20 items), create goal form, leave group with confirmation modal, copy invite code |
+| `frontend/src/components/InviteCodeInput.jsx` | 6-character input — individual boxes, alphanumeric validation, auto-focus next, paste support, submit button |
+| `frontend/src/components/SharedGoalLeaderboard.jsx` | Goal leaderboard — title/target, members sorted by completion % descending, trophy icon for #1, progress bars, current/target display |
+| `frontend/src/components/CommunityChallenges.jsx` | Active challenges list — title, description, type badge (color-coded), time remaining, join button for unjoined, progress bar for joined, empty state |
+
+### Files Modified (Task 8)
+| File | Changes |
+|------|---------|
+| `backend/server.py` | Added social router import & registration (`from social_router import social_router; app.include_router(social_router)`) before `app.include_router(api_router)` |
+| `frontend/src/App.js` | Added imports for StudyGroups and GroupDetail, added `/social` and `/social/group/:groupId` routes in Shell, added `isGroupDetail` check to hide BottomNav on group detail page |
+| `frontend/src/components/BottomNav.jsx` | Added "Social" tab with Users icon linking to `/social`, positioned between Discover and Chat |
+| `change_log.md` | Added this session's log entry |
+| `diary.md` | Added diary entry for this session |
+
+### Key Functions in `social_service.py`
+| Function | Purpose |
+|----------|---------|
+| `create_group(user_id, name)` | Creates group with unique 6-char invite code, adds creator as first member |
+| `get_group(group_id, user_id)` | Returns group with privacy-filtered members, shared goals, activity feed (members only) |
+| `get_user_groups(user_id)` | Lists all groups user belongs to |
+| `join_group_by_invite(user_id, invite_code)` | Joins group by code, validates capacity (max 20), returns error for invalid codes |
+| `join_group_by_id(user_id, group_id)` | Joins group directly by ID |
+| `leave_group(user_id, group_id)` | Removes from members + all goal leaderboards, retains XP/badges |
+| `create_shared_goal(user_id, group_id, title, target)` | Creates goal, adds creator with progress 0 |
+| `update_goal_progress(user_id, goal_id, current)` | Updates progress, triggers milestone notifications (25/50/75/100%) to other members |
+| `get_group_goals(group_id)` | Returns goals with leaderboard sorted by completion % descending |
+| `get_active_challenges()` | Returns current week's challenges (start_date ≤ now ≤ end_date) |
+| `create_challenge(...)` | Creates challenge with auto-computed Monday-Sunday window |
+| `join_challenge(user_id, challenge_id)` | Adds user as participant (validates still active, not already joined) |
+| `update_challenge_progress(user_id, challenge_id, progress)` | Updates progress, auto-completes at 100% |
+| `complete_challenge(user_id, challenge_id)` | Awards 50 XP + badge via direct DB update |
+| `_broadcast_milestone(group, user_id, display_name, goal_title, milestone)` | Creates notification for every OTHER group member |
+| `_log_activity(group_id, user_id, action, description)` | Stores activity in `group_activities` collection |
+| `_get_activity_feed(group_id, limit)` | Returns recent N activities sorted by date |
+
+### Summary
+Completed Task 7 (checkpoint — 153 tests pass) and Task 8 (Social Features). Backend provides full study group lifecycle (create, join by invite code, leave, shared goals with sorted leaderboards, milestone broadcasts, community challenges with XP/badge rewards). Frontend provides a polished social UI with StudyGroups page (tabs, modals), group cards with avatar previews, full group detail with leaderboards and activity feed, 6-char invite code input with validation, and community challenges with progress tracking. Social tab added to BottomNav for easy access.

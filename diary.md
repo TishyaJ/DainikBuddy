@@ -392,3 +392,102 @@ Per Req 3.9, the app must not prompt for push notification permission more than 
 - **Parent task 6 auto-completed** (both required children done, 6.2 was optional)
 - **Newly ready tasks**: 9.1 (Categorization service), 8.1 (Social module), 10.1 (Analytics)
 - **All tests passing**
+
+
+---
+
+## June 13, 2026 — Task 7: Checkpoint & Task 8: Social Features
+
+### What happened
+Ran the Task 7 checkpoint (all tests pass) and then executed Task 8 (Social Features and Peer Accountability) — subtasks 8.1 (backend) and 8.3 (frontend). Task 8.2 (property tests) was optional and skipped.
+
+### Task 7: Checkpoint
+Ran `python -m pytest tests/ -v` — **153 tests pass** in 15.69 seconds. Only 1 warning (starlette multipart deprecation, unrelated to our code). Test breakdown:
+- `test_auth.py` + `test_auth_properties.py` — auth validation
+- `test_chat_personality.py` — 27 buddy personality tests
+- `test_context_engine.py` — 36 context engine tests
+- `test_conversation_memory.py` — 31 memory service tests
+
+No issues found. Clean bill of health.
+
+### Task 8: Execution Strategy
+- **8.1 first** (social service + router) — backend must exist for frontend to call
+- **8.3 second** (frontend components) — depends on API endpoints being defined
+- Both completed successfully
+
+### Key Architecture Decisions
+
+**Invite code as simple random generation with uniqueness check:**
+The invite code is 6 characters from `string.ascii_letters + string.digits` (62 possible characters per position = 62^6 ≈ 56 billion combinations). A while loop retries if a collision occurs (astronomically unlikely but handled). No expiry is implemented — codes are permanent per the spec.
+
+**Activity feed as a separate collection:**
+Rather than embedding activity items inside the group document (which would grow unbounded), activities are stored in a `group_activities` collection with a `group_id` field. Queries are simple: sort by `created_at` desc, limit 20. This also allows future features like cross-group activity feeds.
+
+**Leaderboard computed on read, not stored:**
+The shared goals leaderboard is calculated each time `get_group_goals()` is called — it iterates the `progress` array, computes each member's completion percentage, and sorts descending. This avoids maintaining a separate sorted structure and ensures it's always current.
+
+**Challenge completion awards XP via direct MongoDB update:**
+Rather than going through the `gamification_service.award_xp()` function (which has daily caps), challenge completion directly increments `total_xp` by 50 in the gamification document. This is correct per spec — challenge XP is a one-time bonus, not subject to daily caps.
+
+**Privacy enforcement at the query/response layer:**
+Group API responses strip all fields except `display_name`, `level`, and `joined_at` from member objects. The `get_group()` and `get_user_groups()` functions both apply this filter before returning. This means even if the DB stores more info, the API never leaks it.
+
+**Leave group cleans up leaderboards:**
+When a user leaves, `$pull` removes them from both the group's `members` array and all `shared_goals.progress` arrays for that group. Their gamification data (XP, badges) is untouched — they keep everything they earned.
+
+### Frontend Components Created
+
+**StudyGroups.jsx (main page):**
+- SubTabs: "My Groups" | "Challenges"
+- My Groups: list of StudyGroupCards + Create/Join buttons with modals
+- Challenges: CommunityChallenges component
+- Empty state with Users icon when no groups
+
+**StudyGroupCard.jsx:**
+- Group name, member count (Users icon)
+- First 4 member avatars as colored gradient circles with initials
+- "+N" overflow indicator for larger groups
+- Invite code with copy button
+- Click navigates to `/social/group/:id`
+
+**GroupDetail.jsx:**
+- Full group view accessed via `/social/group/:groupId`
+- Members as colored pill badges (initial + name + level)
+- Shared goals rendered via SharedGoalLeaderboard
+- Activity feed (20 items, relative timestamps)
+- Create goal form (title + target)
+- Leave group with confirmation modal
+- Copy invite code button
+
+**InviteCodeInput.jsx:**
+- 6 individual character input boxes
+- Alphanumeric-only validation (strips other chars)
+- Auto-focus next on input, backspace returns to previous
+- Paste support (distributes pasted text across boxes)
+- Submit button enabled only when all 6 filled
+
+**SharedGoalLeaderboard.jsx:**
+- Goal title + target display
+- Members sorted by completion % descending
+- Trophy icon for #1, numbered ranks for others
+- Progress bar per member with gradient fill
+- Current/target and percentage display
+
+**CommunityChallenges.jsx:**
+- Lists active weekly challenges
+- Type badge (Streak/XP/Sessions/Goals with colors)
+- Time remaining calculation
+- "Join Challenge" button for unjoined
+- Progress bar for joined challenges
+- Empty state when no active challenges
+
+### Navigation Integration
+- Added "Social" tab (Users icon) to BottomNav between Discover and Chat
+- Added `/social` and `/social/group/:groupId` routes in Shell
+- BottomNav hidden on group detail page (full-screen experience)
+
+### Current State
+- **Tasks completed**: 1.x ✓, 2.1 ✓, 2.3 ✓, 3 ✓, 4.x ✓, 5.x ✓, 6.x ✓, 7 ✓, 8.1 ✓, 8.3 ✓
+- **Parent task 8 auto-completed** (both required children done, 8.2 was optional)
+- **All 153 tests passing**
+- **Newly ready tasks**: 9.1 (Categorization service), 10.1 (Analytics), and others from wave 6+

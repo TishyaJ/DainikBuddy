@@ -1537,6 +1537,10 @@ app.include_router(gamification_router)
 from notification_router import notification_router
 app.include_router(notification_router)
 
+# ============ SOCIAL ROUTER ============
+from social_router import social_router
+app.include_router(social_router)
+
 app.include_router(api_router)
 
 app.add_middleware(
