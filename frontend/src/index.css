@@ -1,0 +1,85 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 98%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 261 83% 58%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 14% 96%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 220 14% 96%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 220 14% 96%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: 261 83% 58%;
+  --radius: 0.75rem;
+}
+
+* { border-color: hsl(var(--border)); }
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  background: #E2E8F0;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  color: hsl(var(--foreground));
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6, .font-display {
+  font-family: 'Outfit', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Phone frame scrollbar hide */
+.scroll-area::-webkit-scrollbar { width: 0; display: none; }
+.scroll-area { scrollbar-width: none; }
+
+/* Domain themes - dynamic primary via CSS vars */
+[data-domain="daily"]    { --bdy: #A855F7; --bdy-soft: #FAF5FF; --bdy-2: #EC4899; }
+[data-domain="finance"]  { --bdy: #3B82F6; --bdy-soft: #EFF6FF; --bdy-2: #8B5CF6; }
+[data-domain="wellness"] { --bdy: #A78BFA; --bdy-soft: #F5F3FF; --bdy-2: #34D399; }
+[data-domain="discover"] { --bdy: #F43F5E; --bdy-soft: #FFF1F2; --bdy-2: #F97316; }
+[data-domain="helper"]   { --bdy: #A855F7; --bdy-soft: #FAF5FF; --bdy-2: #EC4899; }
+
+.bdy-bg { background: var(--bdy); }
+.bdy-text { color: var(--bdy); }
+.bdy-soft { background: var(--bdy-soft); }
+.bdy-gradient { background: linear-gradient(135deg, var(--bdy) 0%, var(--bdy-2) 100%); }
+
+/* Slider thumb */
+input[type=range].bdy-slider {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--bdy) 0%, var(--bdy) var(--val,50%), #E2E8F0 var(--val,50%), #E2E8F0 100%);
+  outline: none;
+}
+input[type=range].bdy-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: white;
+  border: 3px solid var(--bdy);
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+.no-tap-highlight { -webkit-tap-highlight-color: transparent; }
+
+/* hide scrollbar on horizontal pill row */
+.hide-sb::-webkit-scrollbar { display: none; }
+.hide-sb { scrollbar-width: none; }

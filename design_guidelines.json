@@ -1,0 +1,108 @@
+{
+  "theme_and_archetype": {
+    "theme": "Light",
+    "archetype": "Archetype 3: Pastel & Soft mixed with Vibrant Play",
+    "reasoning": "A Gen Z student super-app needs to be optimistic, tactile, and highly approachable. The light theme with vibrant pastel accents reduces cognitive load while studying, and dynamic domains keep the experience engaging."
+  },
+  "typography": {
+    "headings": {
+      "font_family": "Outfit",
+      "weights": ["600", "700"],
+      "usage": "Use for all H1, H2, H3, card titles, and numbers/balances. Tight tracking (tracking-tight) is mandatory for headings above text-2xl."
+    },
+    "body": {
+      "font_family": "Plus Jakarta Sans",
+      "weights": ["400", "500"],
+      "usage": "Use for all paragraph text, input fields, labels, and small UI text. Clean and extremely legible."
+    },
+    "forbidden_fonts": ["Inter", "Roboto", "Open Sans"]
+  },
+  "color_palette": {
+    "neutral": {
+      "background": "#FAFAFA",
+      "surface": "#FFFFFF",
+      "text_main": "#0F172A",
+      "text_muted": "#64748B",
+      "border": "#E2E8F0"
+    },
+    "domains": {
+      "finance": {
+        "primary": "#3B82F6",
+        "secondary": "#8B5CF6",
+        "bg_soft": "#EFF6FF"
+      },
+      "wellness": {
+        "primary": "#A78BFA",
+        "secondary": "#34D399",
+        "bg_soft": "#F5F3FF"
+      },
+      "discover": {
+        "primary": "#F43F5E",
+        "secondary": "#F97316",
+        "bg_soft": "#FFF1F2"
+      },
+      "helper": {
+        "primary": "#A855F7",
+        "gradient": "bg-gradient-to-br from-purple-500 to-pink-500",
+        "bg_soft": "#FAF5FF"
+      }
+    }
+  },
+  "spacing_and_layout": {
+    "desktop_container": "Flex center on desktop with gray background (bg-slate-100).",
+    "mobile_frame": "relative mx-auto w-full max-w-[400px] h-[850px] bg-white rounded-[40px] border-[12px] border-slate-900 shadow-2xl overflow-hidden flex flex-col",
+    "internal_padding": "p-5",
+    "cards": "bg-white rounded-2xl p-5 shadow-sm border border-slate-100 mb-4 transition-all hover:shadow-md",
+    "bottom_nav": "absolute bottom-0 w-full h-16 bg-white/90 backdrop-blur-md border-t border-slate-100 flex items-center justify-around z-50 pb-safe"
+  },
+  "components": {
+    "domain_switcher": "Horizontal scrollable flex row (gap-2) of pills. Active pill takes the domain's primary color as background, white text. Inactive pill: bg-slate-100 text-slate-600.",
+    "mood_selector": "Row of 5 emoji buttons. Active state adds a 2px ring of the domain color and slightly scales up the emoji (transform scale-110).",
+    "sliders": "Custom styled range input. The track fill color must match the active domain's primary color.",
+    "circular_ring": "SVG circle with stroke-dasharray. Use Recharts PieChart or custom SVG. Stroke color = domain primary.",
+    "charts": "Use Recharts. Use the active domain color for the bars/lines. For radar chart, use helper purple gradient fill.",
+    "chat_bubbles": "User: domain primary bg, white text, rounded-2xl rounded-tr-sm. AI: bg-slate-100, text-slate-900, rounded-2xl rounded-tl-sm.",
+    "buttons": "rounded-xl font-medium px-4 py-3 active:scale-95 transition-transform"
+  },
+  "testing_attributes": {
+    "rule": "All interactive and key informational elements MUST include a data-testid attribute.",
+    "format": "kebab-case, role-based",
+    "examples": ["data-testid='mood-selector-happy'", "data-testid='nav-finance-tab'", "data-testid='expense-save-button'"]
+  },
+  "image_urls": {
+    "finance_mascot_owl": {
+      "url": "https://images.unsplash.com/photo-1553264701-d138db4fd5d4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNzl8MHwxfHNlYXJjaHwxfHxjdXRlJTIwb3dsfGVufDB8fHx8MTc4MTM0NDkwNHww&ixlib=rb-4.1.0&q=85",
+      "description": "Cute brown and white owl. Use in Finance Buddy hero or zero-state."
+    },
+    "wellness_mascot_cloud": {
+      "url": "https://images.unsplash.com/photo-1601370552761-d129028bd833?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHwxfHxmbHVmZnklMjBjbG91ZCUyMHNreXxlbnwwfHx8fDE3ODEzNDQ5MDR8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Fluffy cloud. Use in Wellness Buddy header or sleep/routine sections."
+    },
+    "discover_mascot_compass": {
+      "url": "https://images.unsplash.com/photo-1519709042477-8de6eaf1fdc5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2Mzl8MHwxfHNlYXJjaHwxfHxjb21wYXNzJTIwbWFwfGVufDB8fHx8MTc4MTM0NDkwNHww&ixlib=rb-4.1.0&q=85",
+      "description": "Compass decor. Use in Discover Buddy header or map/activities section."
+    },
+    "lifestyle_study": {
+      "url": "https://images.unsplash.com/photo-1514369118554-e20d93546b30?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTZ8MHwxfHNlYXJjaHwyfHxjb2xsZWdlJTIwc3R1ZGVudCUyMHN0dWR5aW5nfGVufDB8fHx8MTc4MTM0NDkwNHww&ixlib=rb-4.1.0&q=85",
+      "description": "College student studying. Use in Helper Buddy or Discover goals."
+    },
+    "snack_flatlay": {
+      "url": "https://images.unsplash.com/photo-1614242239788-3282f136fe10?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAxODF8MHwxfHNlYXJjaHwyfHxzbmFjayUyMGZsYXRsYXl8ZW58MHx8fHwxNzgxMzQ0OTA0fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Snack flatlay. Use in Discover Buddy food/snacks feature."
+    }
+  },
+  "motion_and_interactions": {
+    "hover_states": "Buttons and cards should lift slightly (-translate-y-0.5) and increase shadow on hover.",
+    "active_states": "Buttons must scale down to 95% on click (active:scale-95) for tactile feedback.",
+    "transitions": "Use 'transition-all duration-200 ease-out' for color and layout shifts when changing domains."
+  },
+  "instructions_to_main_agent": [
+    "Install Google Fonts for Outfit and Plus Jakarta Sans. Do NOT use Inter.",
+    "Install lucide-react or phosphor-icons for tab and UI icons.",
+    "Use Recharts for the weekly bar charts and radial life-balance radar chart.",
+    "Setup a 'ThemeProvider' or domain state context to dynamically update CSS variables or Tailwind classes based on the active tab (Daily, Finance, Wellness, Discover, Helper).",
+    "Build a primary wrapper that acts as a phone frame on desktop screens (max-width: 400px, border-radius, overflow-hidden) and full width on mobile.",
+    "Ensure all interactive components have a proper data-testid attribute in kebab-case format.",
+    "Use standard JS and JSX files (.js/.jsx), NO TypeScript (.ts/.tsx) files."
+  ]
+}
