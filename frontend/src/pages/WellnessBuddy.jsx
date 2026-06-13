@@ -138,10 +138,38 @@ const Burnout = () => {
   );
 };
 
+const AICard = ({ card }) => {
+  const isPlan = card.kind === "plan" || /plan/i.test(card.kind || "");
+  return (
+    <div className={`rounded-2xl p-4 ${isPlan ? "bg-emerald-50 border border-emerald-100" : "bdy-soft border border-[color:var(--bdy)]/15"}`}>
+      <div className="flex items-start gap-3">
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isPlan ? "bg-emerald-500" : "bdy-bg"} text-white`}>
+          <Sparkles className="w-4 h-4" />
+        </div>
+        <div className="flex-1">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+            {isPlan ? "Plan" : "Motivation"}
+          </div>
+          <div className="text-sm font-display font-bold text-slate-900">{card.title}</div>
+          <div className="text-xs text-slate-700 mt-1 leading-relaxed">{card.text}</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Stress = () => {
   const [data, setData] = useState([]);
-  useEffect(() => { api.get("/mood/weekly").then((r) => setData(r.data)); }, []);
+  const [cards, setCards] = useState([]);
+  const [loadingCards, setLoadingCards] = useState(true);
+  useEffect(() => {
+    api.get("/mood/weekly").then((r) => setData(r.data));
+    api.get("/wellness/cards?kind=stress").then((r) => { setCards(r.data); setLoadingCards(false); }).catch(() => setLoadingCards(false));
+  }, []);
   const moodEmoji = { great: "😄", good: "🙂", okay: "😐", bad: "🙁", terrible: "😢" };
+  // dynamic triggers from data
+  const stressAvg = data.length ? Math.round(data.reduce((s, d) => s + (d.stress || 0), 0) / data.length) : 0;
+  const worstDay = [...data].sort((a, b) => (b.stress || 0) - (a.stress || 0))[0];
   return (
     <div className="mx-5 mt-4 space-y-3">
       <Card>
@@ -154,40 +182,57 @@ const Stress = () => {
             </div>
           ))}
         </div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="p-2.5 rounded-xl bg-slate-50">
+            <div className="text-[10px] text-slate-500 font-semibold">AVG STRESS</div>
+            <div className="font-display font-bold text-lg">{stressAvg}/100</div>
+          </div>
+          <div className="p-2.5 rounded-xl bg-slate-50">
+            <div className="text-[10px] text-slate-500 font-semibold">PEAK DAY</div>
+            <div className="font-display font-bold text-lg">{worstDay ? worstDay.day : "—"}</div>
+          </div>
+        </div>
       </Card>
-      <Card>
-        <h3 className="font-display font-bold text-sm">Identified Triggers</h3>
-        <ul className="text-xs text-slate-600 mt-2 space-y-1">
-          <li>• Late-night study sessions → low next-day mood</li>
-          <li>• Skipped meals → energy crash by 3pm</li>
-          <li>• Exam week → stress 30% above baseline</li>
-        </ul>
-      </Card>
+
+      <div data-testid="wellness-ai-cards" className="space-y-2">
+        {loadingCards && (
+          <Card><div className="text-xs text-slate-500 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bdy-bg animate-pulse" /> Wellness AI is thinking…</div></Card>
+        )}
+        {cards.map((c, i) => <AICard key={i} card={c} />)}
+      </div>
     </div>
   );
 };
 
-const Routine = () => (
-  <div className="mx-5 mt-4 space-y-3">
-    <Card>
-      <h3 className="font-display font-bold text-base">Habit Consistency</h3>
-      <div className="mt-3 space-y-2.5">
-        {[
-          { h: "Morning workout", v: 70 }, { h: "Healthy meals", v: 55 },
-          { h: "Bedtime by 11pm", v: 40 }, { h: "Daily journal", v: 80 },
-        ].map((h) => (
-          <div key={h.h}>
-            <div className="flex justify-between text-xs">
-              <span className="font-semibold">{h.h}</span><span className="text-slate-500">{h.v}%</span>
+const Routine = () => {
+  const [habits, setHabits] = useState([]);
+  useEffect(() => { api.get("/routine/habits").then((r) => setHabits(r.data)); }, []);
+  const worst = [...habits].sort((a, b) => a.value - b.value)[0];
+  return (
+    <div className="mx-5 mt-4 space-y-3">
+      <Card>
+        <h3 className="font-display font-bold text-base">Habit Consistency</h3>
+        <p className="text-xs text-slate-500">Last 7 days · computed from your check-ins, sleep, journal & workouts.</p>
+        <div className="mt-3 space-y-2.5" data-testid="habit-list">
+          {habits.map((h) => (
+            <div key={h.habit}>
+              <div className="flex justify-between text-xs">
+                <span className="font-semibold">{h.habit}</span><span className="text-slate-500">{h.value}%</span>
+              </div>
+              <div className="h-2 mt-1 rounded-full bg-slate-100">
+                <div className={`h-full rounded-full ${h.value >= 70 ? "bg-emerald-500" : h.value >= 40 ? "bdy-bg" : "bg-rose-400"}`} style={{ width: `${h.value}%` }} />
+              </div>
             </div>
-            <div className="h-2 mt-1 rounded-full bg-slate-100"><div className="h-full bdy-bg rounded-full" style={{ width: `${h.v}%` }} /></div>
-          </div>
-        ))}
-      </div>
-      <InsightCard icon={Sparkles} title="Schedule disruption" text="Sleep pattern shifted 1hr later this week. Reset with a Sunday wind-down ritual." />
-    </Card>
-  </div>
-);
+          ))}
+        </div>
+        {worst && (
+          <InsightCard icon={Sparkles} title="Schedule disruption"
+            text={`Your weakest habit this week is "${worst.habit}" (${worst.value}%). Pick one specific time tomorrow and protect it.`} />
+        )}
+      </Card>
+    </div>
+  );
+};
 
 const CheckIns = () => (
   <div className="mx-5 mt-4 space-y-3">

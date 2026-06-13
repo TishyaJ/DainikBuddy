@@ -98,17 +98,32 @@ const Slider = ({ label, value, onChange, testid }) => (
   </div>
 );
 
+const PRESET_GOALS = [
+  "Study 3 hrs/day",
+  "Sleep before 11pm",
+  "Gym 3x/week",
+  "Save ₹500/week",
+  "Read 20 pages/day",
+  "Drink 8 glasses water",
+  "Meditate 10 min/day",
+  "Walk 6,000 steps",
+];
+
 export default function Onboarding({ onDone, initial = {}, isEdit = false }) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState(initial.name || "Alex");
   const [pattern, setPattern] = useState({ stress_baseline: 5, ...(initial.your_pattern || {}) });
+  const [goals, setGoals] = useState(initial.goals || []);
+  const [customGoal, setCustomGoal] = useState("");
   const [saving, setSaving] = useState(false);
 
   const setKey = (k, v) => setPattern((p) => ({ ...p, [k]: v }));
 
+  const toggleGoal = (g) => setGoals((arr) => arr.includes(g) ? arr.filter((x) => x !== g) : [...arr, g]);
+
   const save = async () => {
     setSaving(true);
-    await api.post("/profile/onboard", { name, your_pattern: pattern });
+    await api.post("/profile/onboard", { name, your_pattern: pattern, goals });
     setSaving(false);
     onDone?.();
   };
@@ -167,6 +182,50 @@ export default function Onboarding({ onDone, initial = {}, isEdit = false }) {
         </div>
       ),
       canNext: () => Q_WELL.every((q) => pattern[q.key]) && pattern.stress_baseline != null,
+    },
+    {
+      title: "Daily Goals", sub: "Pick 2–4 you want to track on your home page.",
+      domain: "helper", emoji: "🎯",
+      body: (
+        <div>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {PRESET_GOALS.map((g) => (
+              <button key={g} onClick={() => toggleGoal(g)} data-testid={`onb-goal-${g.slice(0, 10)}`}
+                className={`px-3 py-2 rounded-full text-xs font-semibold transition active:scale-95 ${
+                  goals.includes(g) ? "bdy-bg text-white shadow-md" : "bg-white text-slate-700 border border-slate-200"
+                }`}>
+                {goals.includes(g) ? "✓ " : ""}{g}
+              </button>
+            ))}
+          </div>
+          <div className="mt-4">
+            <label className="text-[11px] font-semibold text-slate-600">Add your own</label>
+            <div className="flex gap-2 mt-1.5">
+              <input
+                data-testid="onb-custom-goal"
+                value={customGoal}
+                onChange={(e) => setCustomGoal(e.target.value)}
+                placeholder="e.g. Finish thesis chapter"
+                className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]"
+              />
+              <button
+                onClick={() => { if (customGoal.trim()) { toggleGoal(customGoal.trim()); setCustomGoal(""); } }}
+                data-testid="onb-add-custom-goal"
+                className="px-3 py-2 rounded-xl bdy-bg text-white text-sm font-semibold"
+              >
+                Add
+              </button>
+            </div>
+          </div>
+          {goals.length > 0 && (
+            <div className="mt-4 p-3 rounded-xl bg-slate-50">
+              <div className="text-[10px] font-semibold uppercase text-slate-500">Selected</div>
+              <div className="text-xs text-slate-700 mt-1">{goals.join(" · ")}</div>
+            </div>
+          )}
+        </div>
+      ),
+      canNext: () => goals.length >= 1,
     },
   ];
 

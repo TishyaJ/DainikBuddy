@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 4 PocketBuddy testing complete. Backend pytest 9/9 passed, Frontend Playwright covers Onboarding (4-step + goals), Exercise Tracker (CRUD + sessions + summary), Wellness Buddy (AI cards + dynamic habits), Profile Settings (rerun-onboarding + edit-pattern). All key features verified end-to-end with real data and live AI calls.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_pocketbuddy_iter4.py",
+    "/app/test_reports/pytest/iter4_results.xml"
+  ],
+  "action_items": [
+    "Optional: there is no DELETE /api/goals/{id} endpoint (cleanup attempt returned 405). Not in iter4 scope but worth adding for parity with /api/exercises and /api/tasks. Currently goals can only be added via /api/goals or replaced via /api/profile/onboard."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now 1202 lines and still growing (Exercises + Wellness AI + Routine + chat all live in one module). Consider splitting into routers/ submodules (exercises.py, wellness.py, chat.py, profile.py) — file size guideline >700 lines.",
+    "_generate_wellness_cards builds an UNTRUSTED `f\"Context: {context}\"` prompt by stringifying a Python dict — works, but a json.dumps(context) would be cleaner and safer for prompt injection of weird unicode in user-supplied goal/task titles.",
+    "/api/wellness/cards has NO server-side caching. Every GET triggers a fresh Anthropic streaming call (~3-8s, costs tokens). Recommend caching the result per (user_id, kind, hour) to avoid re-spending on every Stress-tab visit.",
+    "Profile.jsx 'Re-run onboarding' relies on window.confirm() which blocks any Playwright test that doesn't pre-install a dialog handler — not a bug, but a custom modal would be more testable & on-brand.",
+    "chat_stream injects pattern at the END of system message AFTER the buddy persona. This is correct, but if pattern is empty the trailing `\\n\\nThe user is named Alex.` still appears — harmless but slightly wasteful tokens."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_pocketbuddy_iter4.py",
+    "/app/test_reports/iteration_4.json"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Demo user 'alex' (no auth). EMERGENT_LLM_KEY present and validated by wellness_cards + chat_stream.",
+  "seed_data_creation": "Tests create TEST_-prefixed exercises and one TEST_MyCustomGoal that gets cleaned up via API. Module also temporarily wipes mood_entries to assert habit recompute, restoring afterwards.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All iter4 acceptance criteria verified. Backend test file: test_pocketbuddy_iter4.py. Key verifications: (1) Chat pattern injection — assistant text persisted in Mongo chat_messages reflects user name/pattern. (2) Exercise CRUD + start/stop/sessions/summary working including dynamic by_part_7d aggregation. (3) GET /api/routine/habits returns 4 named habits with 0-100 values driven by sleep_entries/exercise_sessions/journal_entries/mood_entries (last 7d). Daily check-in updates from 0 -> positive after adding one mood entry. (4) /api/wellness/cards returns valid JSON cards (LLM via Anthropic claude-sonnet-4-5 with fallback). Sample reply: 'You're Crushing It, Alex! 🌟 ... studying, saving, and workouts' — proves it received the user's name, goals AND pattern. (5) /api/profile/onboard with goals[] creates source='onboard' goals; re-running replaces ONLY onboard-sourced goals (verified non-onboard goals untouched). (6) PATCH /api/profile {onboarded:false} works for re-onboarding flow. Frontend: 4-step Onboarding gates Save until at least one goal is selected. Exercise Detail modal start->stop with comment persists and shows in session-list. Stress tab loads wellness-ai-cards with personalised text within ~5s. Routine tab habit-list shows real labels (7+ hour sleep, Exercise, Daily journal, Daily check-in). Profile settings card 'Re-run onboarding' uses window.confirm() — tests need page.on('dialog', d:d.accept()) handler installed BEFORE clicking. 'Edit Your Pattern only' opens an overlay onboarding in isEdit mode (no goals/name steps). After all tests profile is reset to {name:'Alex', onboarded:true}.",
+  "rca of the issue": "N/A — no failures."
+}

@@ -160,6 +160,27 @@ class TaskSession(BaseModel):
     comment: str = ""
 
 
+class Exercise(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str = DEMO_USER
+    name: str
+    body_part: str = "full"  # upper / lower / full / cardio
+    target_minutes: int = 30
+    progress: int = 0  # 0..100
+    status: str = "active"
+    created_at: str = Field(default_factory=now_iso)
+
+
+class ExerciseSession(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    exercise_id: str
+    user_id: str = DEMO_USER
+    started_at: str = Field(default_factory=now_iso)
+    ended_at: Optional[str] = None
+    elapsed_seconds: int = 0
+    comment: str = ""
+
+
 # ============ SEED ============
 async def seed_demo_data():
     """Seed demo data once for user 'alex' (idempotent for profile & tasks)."""
@@ -510,6 +531,216 @@ async def mood_weekly():
              "stress": m.get("stress", 50)} for m in moods]
 
 
+# ============ EXERCISES (physical wellbeing) ============
+@api_router.get("/exercises")
+async def get_exercises():
+    return await db.exercises.find({"user_id": DEMO_USER}, {"_id": 0}).sort("created_at", -1).to_list(100)
+
+
+@api_router.post("/exercises")
+async def create_exercise(payload: Dict[str, Any]):
+    name = (payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "Name required")
+    e = Exercise(
+        user_id=DEMO_USER, name=name,
+        body_part=payload.get("body_part") or "full",
+        target_minutes=int(payload.get("target_minutes") or 30),
+    )
+    await db.exercises.insert_one(e.model_dump())
+    return e
+
+
+@api_router.patch("/exercises/{eid}")
+async def update_exercise(eid: str, payload: Dict[str, Any]):
+    payload.pop("id", None); payload.pop("user_id", None)
+    if "progress" in payload:
+        payload["progress"] = max(0, min(100, int(payload["progress"])))
+        payload["status"] = "done" if payload["progress"] >= 100 else "active"
+    await db.exercises.update_one({"id": eid, "user_id": DEMO_USER}, {"$set": payload})
+    return await db.exercises.find_one({"id": eid}, {"_id": 0})
+
+
+@api_router.delete("/exercises/{eid}")
+async def delete_exercise(eid: str):
+    await db.exercises.delete_one({"id": eid, "user_id": DEMO_USER})
+    await db.exercise_sessions.delete_many({"exercise_id": eid, "user_id": DEMO_USER})
+    return {"deleted": 1}
+
+
+@api_router.post("/exercises/{eid}/start")
+async def start_exercise_session(eid: str):
+    await db.exercise_sessions.update_many(
+        {"exercise_id": eid, "user_id": DEMO_USER, "ended_at": None},
+        {"$set": {"ended_at": now_iso()}},
+    )
+    s = ExerciseSession(exercise_id=eid)
+    await db.exercise_sessions.insert_one(s.model_dump())
+    return s
+
+
+@api_router.post("/exercises/{eid}/stop")
+async def stop_exercise_session(eid: str, payload: Dict[str, Any]):
+    open_s = await db.exercise_sessions.find_one(
+        {"exercise_id": eid, "user_id": DEMO_USER, "ended_at": None},
+        {"_id": 0}, sort=[("started_at", -1)],
+    )
+    if not open_s:
+        raise HTTPException(404, "No active session")
+    ended = now_iso()
+    started_dt = datetime.fromisoformat(open_s["started_at"])
+    elapsed = int((datetime.fromisoformat(ended) - started_dt).total_seconds())
+    comment = (payload.get("comment") or "").strip()
+    await db.exercise_sessions.update_one(
+        {"id": open_s["id"]},
+        {"$set": {"ended_at": ended, "elapsed_seconds": elapsed, "comment": comment}},
+    )
+    return {**open_s, "ended_at": ended, "elapsed_seconds": elapsed, "comment": comment}
+
+
+@api_router.get("/exercises/{eid}/sessions")
+async def get_exercise_sessions(eid: str):
+    sessions = await db.exercise_sessions.find(
+        {"exercise_id": eid, "user_id": DEMO_USER}, {"_id": 0}
+    ).sort("started_at", -1).to_list(100)
+    total = sum(s.get("elapsed_seconds", 0) for s in sessions)
+    active = next((s for s in sessions if not s.get("ended_at")), None)
+    return {"sessions": sessions, "total_seconds": total, "active": active}
+
+
+@api_router.get("/exercises/summary")
+async def exercises_summary():
+    """Today's snapshot: total active minutes, sedentary warning, upper/lower split (last 7d)."""
+    today = datetime.now(timezone.utc)
+    today_start = today.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    sessions = await db.exercise_sessions.find(
+        {"user_id": DEMO_USER, "started_at": {"$gte": today_start}, "ended_at": {"$ne": None}}, {"_id": 0},
+    ).to_list(200)
+    today_minutes = sum(s.get("elapsed_seconds", 0) for s in sessions) // 60
+
+    # last 7 days upper vs lower vs full
+    since = (today - timedelta(days=7)).isoformat()
+    last7 = await db.exercise_sessions.find(
+        {"user_id": DEMO_USER, "started_at": {"$gte": since}, "ended_at": {"$ne": None}}, {"_id": 0},
+    ).to_list(500)
+    ex_ids = {s["exercise_id"] for s in last7}
+    exs = await db.exercises.find({"id": {"$in": list(ex_ids)}, "user_id": DEMO_USER}, {"_id": 0}).to_list(100)
+    bp = {e["id"]: e.get("body_part", "full") for e in exs}
+    by_part = {"upper": 0, "lower": 0, "cardio": 0, "full": 0}
+    for s in last7:
+        part = bp.get(s["exercise_id"], "full")
+        by_part[part] = by_part.get(part, 0) + s.get("elapsed_seconds", 0) // 60
+
+    # sedentary: less than 20 minutes today is "sedentary warning"
+    sedentary = today_minutes < 20
+    balanced = by_part["upper"] > 0 and by_part["lower"] > 0
+    return {
+        "today_minutes": today_minutes,
+        "sedentary": sedentary,
+        "sedentary_warning": "You've been sedentary today — try a quick 10-min walk." if sedentary else "Great — you've moved enough today.",
+        "by_part_7d": by_part,
+        "balanced_7d": balanced,
+        "imbalance_note": None if balanced else "You haven't covered both upper and lower body this week. Add the missing group tomorrow.",
+    }
+
+
+# ============ ROUTINE (dynamic habits) ============
+@api_router.get("/routine/habits")
+async def routine_habits():
+    """Compute habit consistency from real data for last 7 days."""
+    today = datetime.now(timezone.utc)
+    since = today - timedelta(days=7)
+    since_iso = since.isoformat()
+
+    sleeps = await db.sleep_entries.find({"user_id": DEMO_USER}, {"_id": 0}).sort("date", -1).to_list(7)
+    journals = await db.journal_entries.find(
+        {"user_id": DEMO_USER, "created_at": {"$gte": since_iso}}, {"_id": 0},
+    ).to_list(100)
+    exercises = await db.exercise_sessions.find(
+        {"user_id": DEMO_USER, "started_at": {"$gte": since_iso}, "ended_at": {"$ne": None}}, {"_id": 0},
+    ).to_list(200)
+    moods = await db.mood_entries.find(
+        {"user_id": DEMO_USER, "created_at": {"$gte": since_iso}}, {"_id": 0},
+    ).to_list(50)
+
+    days_with_sleep_7h = len([s for s in sleeps if s.get("hours", 0) >= 7])
+    exercise_days = len({datetime.fromisoformat(s["started_at"]).date() for s in exercises})
+    journal_days = len({datetime.fromisoformat(j["created_at"]).date() for j in journals})
+    checkin_days = len({datetime.fromisoformat(m["created_at"]).date() for m in moods})
+
+    return [
+        {"habit": "7+ hour sleep", "value": round(days_with_sleep_7h / 7 * 100)},
+        {"habit": "Exercise", "value": round(exercise_days / 7 * 100)},
+        {"habit": "Daily journal", "value": round(journal_days / 7 * 100)},
+        {"habit": "Daily check-in", "value": round(checkin_days / 7 * 100)},
+    ]
+
+
+# ============ WELLNESS AI CARDS ============
+async def _generate_wellness_cards(card_kind: str) -> List[Dict[str, str]]:
+    """Use Wellness Buddy (Claude) to produce 2 short personalized cards.
+
+    Falls back to safe defaults on any error so the UI never blocks.
+    """
+    profile = await db.user_profiles.find_one({"user_id": DEMO_USER}, {"_id": 0}) or {}
+    pattern = profile.get("your_pattern", {}) or {}
+    moods = await db.mood_entries.find({"user_id": DEMO_USER}, {"_id": 0}).sort("created_at", -1).to_list(7)
+    tasks = await db.tasks.find({"user_id": DEMO_USER}, {"_id": 0}).to_list(20)
+    goals = await db.goals.find({"user_id": DEMO_USER}, {"_id": 0}).to_list(20)
+    sleeps = await db.sleep_entries.find({"user_id": DEMO_USER}, {"_id": 0}).sort("date", -1).to_list(7)
+
+    context = {
+        "pattern": pattern,
+        "recent_moods": [{"mood": m["mood"], "stress": m.get("stress", 50)} for m in moods[:5]],
+        "active_tasks": [{"title": t["title"], "progress": t["progress"]} for t in tasks if t.get("status") != "done"][:5],
+        "goals": [{"title": g["title"], "current": g["current"], "status": g["status"]} for g in goals][:5],
+        "avg_sleep": round(sum(s["hours"] for s in sleeps) / max(len(sleeps), 1), 1) if sleeps else 7,
+    }
+    kind_hint = {
+        "stress": "two short cards: one MOTIVATIONAL (encouragement), one PRACTICAL (a doable 5-min plan).",
+        "routine": "two short cards: one habit insight, one tiny next-step plan.",
+    }.get(card_kind, "two helpful cards.")
+    sys = (
+        "You are Wellness Buddy. Respond with EXACTLY this JSON shape and nothing else: "
+        '[{"kind":"motivational","title":"...","text":"..."},{"kind":"plan","title":"...","text":"..."}]. '
+        "Each text <= 30 words. Speak warmly to Alex. Use the user's saved pattern and recent data."
+    )
+    user_msg = f"Context: {context}\nWrite {kind_hint}"
+    try:
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"{DEMO_USER}-wellness-cards-{card_kind}",
+            system_message=sys,
+        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        full = ""
+        async for ev in chat.stream_message(UserMessage(text=user_msg)):
+            if isinstance(ev, TextDelta):
+                full += ev.content
+            elif isinstance(ev, StreamDone):
+                break
+        import json as _json, re as _re
+        # extract JSON array
+        m = _re.search(r"\[.*\]", full, _re.DOTALL)
+        if m:
+            data = _json.loads(m.group(0))
+            if isinstance(data, list) and len(data) >= 1:
+                return data[:2]
+    except Exception as e:
+        logger.warning(f"wellness cards generation failed: {e}")
+    # fallback
+    return [
+        {"kind": "motivational", "title": "You're doing better than you think",
+         "text": "Tiny wins compound. One small step in the next hour beats a perfect plan tomorrow."},
+        {"kind": "plan", "title": "5-min reset",
+         "text": "Stand up, drink water, 10 slow breaths, write one line in your journal. Then resume."},
+    ]
+
+
+@api_router.get("/wellness/cards")
+async def wellness_cards(kind: str = "stress"):
+    return await _generate_wellness_cards(kind)
+
+
 # ============ DISCOVER (static seed) ============
 @api_router.get("/discover/food")
 async def discover_food():
@@ -609,7 +840,11 @@ async def update_profile(payload: Dict[str, Any]):
 
 @api_router.post("/profile/onboard")
 async def onboard(payload: Dict[str, Any]):
-    """Persist Your-Pattern and mark onboarded=true. Accepts {name, your_pattern}."""
+    """Persist Your-Pattern, mark onboarded=true, optionally create Goal entries.
+
+    Accepts {name, your_pattern, goals: [str | {title, target, current?}]}.
+    Each goal becomes a row in /api/goals so the home Goals tab is driven from onboarding.
+    """
     update = {"onboarded": True}
     if payload.get("name"):
         update["name"] = payload["name"].strip()
@@ -617,6 +852,28 @@ async def onboard(payload: Dict[str, Any]):
     if isinstance(payload.get("your_pattern"), dict):
         update["your_pattern"] = payload["your_pattern"]
     await db.user_profiles.update_one({"user_id": DEMO_USER}, {"$set": update}, upsert=True)
+
+    goals_in = payload.get("goals") or []
+    if goals_in:
+        # replace any previously onboarding-created goals so re-running stays clean
+        await db.goals.delete_many({"user_id": DEMO_USER, "source": "onboard"})
+        for g in goals_in:
+            if isinstance(g, str):
+                title = g.strip()
+                if not title:
+                    continue
+                goal = Goal(user_id=DEMO_USER, title=title, target=100, current=0)
+            elif isinstance(g, dict) and g.get("title"):
+                goal = Goal(
+                    user_id=DEMO_USER, title=g["title"].strip(),
+                    target=float(g.get("target") or 100),
+                    current=float(g.get("current") or 0),
+                )
+            else:
+                continue
+            doc = goal.model_dump()
+            doc["source"] = "onboard"
+            await db.goals.insert_one(doc)
     return await get_profile()
 
 
@@ -870,8 +1127,21 @@ class ChatRequest(BaseModel):
 async def chat_stream(buddy: str, req: ChatRequest):
     if buddy not in BUDDY_MODELS:
         raise HTTPException(404, "Unknown buddy")
-    provider, model, system = BUDDY_MODELS[buddy]
+    provider, model, base_system = BUDDY_MODELS[buddy]
     session_id = req.session_id or f"{DEMO_USER}-{buddy}"
+
+    # inject user's "Your Pattern" + name so chat replies stay consistent
+    profile = await db.user_profiles.find_one({"user_id": DEMO_USER}, {"_id": 0}) or {}
+    pattern = profile.get("your_pattern") or {}
+    user_name = profile.get("name", "Alex")
+    pattern_block = ""
+    if pattern:
+        # human-readable pairs
+        pairs = ", ".join(f"{k}={v}" for k, v in pattern.items() if v not in (None, ""))
+        pattern_block = f"\n\nThe user is named {user_name}. Their saved Your-Pattern: {pairs}. Stay consistent with this style; reference it when relevant."
+    else:
+        pattern_block = f"\n\nThe user is named {user_name}."
+    system = base_system + pattern_block
 
     # store user message
     await db.chat_messages.insert_one(ChatMessage(buddy=buddy, role="user", content=req.message).model_dump())

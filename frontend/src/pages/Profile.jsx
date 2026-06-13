@@ -175,6 +175,36 @@ export default function Profile() {
         </Card>
 
         <Card>
+          <h3 className="font-display font-bold text-sm">Settings</h3>
+          <button
+            onClick={async () => {
+              if (!window.confirm("Re-run the Your-Pattern onboarding? Your existing pattern stays until you save the new one.")) return;
+              await api.patch("/profile", { onboarded: false });
+              window.location.href = "/";
+            }}
+            data-testid="rerun-onboarding-btn"
+            className="mt-3 w-full flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100 active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-2">
+              <span>🔄</span>
+              <span className="text-sm font-semibold">Re-run onboarding</span>
+            </div>
+            <span className="text-xs text-slate-500">Edit name + pattern + goals</span>
+          </button>
+          <button
+            onClick={() => setShowEditPattern(true)}
+            data-testid="settings-edit-pattern-btn"
+            className="mt-2 w-full flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100 active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-2">
+              <span>✨</span>
+              <span className="text-sm font-semibold">Edit Your Pattern only</span>
+            </div>
+            <Pencil className="w-3.5 h-3.5 text-slate-500" />
+          </button>
+        </Card>
+
+        <Card>
           <h3 className="font-display font-bold text-sm">About</h3>
           <ul className="mt-2 text-xs text-slate-600 space-y-1">
             <li>· PocketBuddy v0.1 — student super-app</li>
