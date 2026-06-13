@@ -6,7 +6,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
 
 ## Tasks
 
-- [-] 1. Authentication and Security Foundation
+- [ ] 1. Authentication and Security Foundation
   - [x] 1.1 Create backend auth module with registration, login, JWT, and refresh token endpoints
     - Create `backend/auth_service.py` with bcrypt password hashing (cost 12), JWT creation (24h expiry), refresh token (30d expiry)
     - Create `backend/auth_router.py` with `/api/auth/register`, `/api/auth/login`, `/api/auth/refresh`, `/api/auth/forgot-password`, `/api/auth/reset-password`, `/api/auth/delete-account`, `/api/auth/export-data` endpoints
@@ -37,8 +37,8 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - **Property 25: Login Rate Limiting** — Generate failed login sequences, verify lockout after 5 attempts
     - **Validates: Requirements 8.1, 8.2, 8.4, 8.9**
 
-- [-] 2. Gamification Engine
-  - [-] 2.1 Create backend gamification service and router
+- [x] 2. Gamification Engine
+  - [x] 2.1 Create backend gamification service and router
     - Create `backend/gamification_service.py` with XP award logic, streak computation, level calculation, achievement tracking
     - Create `backend/gamification_router.py` with `/api/gamification/status`, `/api/gamification/achievements` endpoints
     - Implement daily caps: mood check-in 10 XP (first only), expense 5 XP (max 10/day), journal 10 XP (first only)
@@ -54,7 +54,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - **Property 12: Level Computation** — Generate XP totals, verify level = floor(XP/100) + 1
     - **Validates: Requirements 4.1, 4.2, 4.3, 4.4, 4.5**
 
-  - [~] 2.3 Create frontend gamification components
+  - [x] 2.3 Create frontend gamification components
     - Create `frontend/src/components/XPProgressBar.jsx` with animated progress to next level
     - Create `frontend/src/components/StreakCounter.jsx` with flame animation
     - Create `frontend/src/components/AchievementBadge.jsx` for badge display
@@ -63,11 +63,11 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - Integrate gamification section into Profile page showing level, XP, streak, badges
     - _Requirements: 4.5, 4.7, 4.8_
 
-- [~] 3. Checkpoint - Ensure all tests pass
+- [x] 3. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 4. Cross-Domain AI Context Engine
-  - [~] 4.1 Create backend context engine service
+- [-] 4. Cross-Domain AI Context Engine
+  - [-] 4.1 Create backend context engine service
     - Create `backend/context_engine.py` that assembles 7-day user data (mood, expenses, sleep, goals, burnout score) into a unified context object
     - Compute financial_health_score (0–100), wellness_composite_score (0–100), habit_consistency_percentage (0–100), active_stressors (max 10 items)
     - Implement graceful degradation: proceed with available data if a domain fails, indicate unavailable domains
@@ -75,7 +75,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - Context assembly must complete within 2 seconds
     - _Requirements: 1.1, 1.4, 1.6, 1.7_
 
-  - [~] 4.2 Implement cross-domain correlation detection
+  - [ ] 4.2 Implement cross-domain correlation detection
     - Detect emotional-eating pattern: stress > 70 AND food spending +30% vs prior 7 days
     - Detect burnout-risk: sleep avg < 6h for 3 consecutive days AND task completion < 50%
     - Surface correlation insights as InsightCards in Daily Hub AI Summary tab
@@ -91,7 +91,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - **Validates: Requirements 1.1, 1.2, 1.3, 1.4, 1.5, 1.7**
 
 - [ ] 5. AI Buddy Personality and Conversation Memory
-  - [~] 5.1 Create backend conversation memory service
+  - [ ] 5.1 Create backend conversation memory service
     - Create `backend/conversation_memory.py` with message persistence (last 50 per buddy)
     - Implement history loading: include last 5 messages as context when user sends message in new session
     - Implement summarization: when >50 messages, summarize older than most recent 20 into ≤500 char summary
@@ -99,7 +99,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - Graceful fallback: proceed without history if DB retrieval fails
     - _Requirements: 9.1, 9.2, 9.5, 9.6, 9.7_
 
-  - [~] 5.2 Implement distinct buddy personalities in chat router
+  - [ ] 5.2 Implement distinct buddy personalities in chat router
     - Update `backend/chat_router.py` (or existing chat logic in server.py) with distinct system prompts per buddy
     - Finance Buddy: include numeric values/budget references in responses
     - Wellness Buddy: use validating language before suggestions
@@ -115,7 +115,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - **Validates: Requirements 9.1, 9.2, 9.5**
 
 - [ ] 6. Smart Notifications and Proactive Nudges
-  - [~] 6.1 Create backend notification service and router
+  - [ ] 6.1 Create backend notification service and router
     - Create `backend/notification_service.py` with nudge generation logic for budget warnings, wellness nudges, check-in reminders, streak celebrations
     - Create `backend/notification_router.py` with `/api/notifications`, `/api/notifications/{id}/dismiss`, `/api/notifications/preferences`, `/api/notifications/subscribe`
     - Budget warning: trigger when category reaches 80% of allocated amount
@@ -133,7 +133,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - **Property 9: Dismissal-Based Frequency Adaptation** — Generate dismissal sequences, verify suppression rules
     - **Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5, 3.7**
 
-  - [~] 6.3 Create frontend notification components
+  - [ ] 6.3 Create frontend notification components
     - Create `frontend/src/components/NotificationBell.jsx` with unread badge count in Header
     - Create `frontend/src/pages/NotificationCenter.jsx` as sheet/drawer showing recent 10 notifications with timestamp, category icon, read/unread status
     - Create `frontend/src/pages/NotificationPreferences.jsx` with toggle switches per category
@@ -142,11 +142,11 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - Display empty state "No notifications yet" when no nudges exist
     - _Requirements: 3.6, 3.8, 3.9, 12.8_
 
-- [~] 7. Checkpoint - Ensure all tests pass
+- [ ] 7. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 8. Social Features and Peer Accountability
-  - [~] 8.1 Create backend social module
+  - [ ] 8.1 Create backend social module
     - Create `backend/social_service.py` with study group creation, invite code generation (6 alphanumeric chars), join/leave logic
     - Create `backend/social_router.py` with `/api/social/groups`, `/api/social/groups/{id}`, `/api/social/groups/{id}/join`, `/api/social/groups/{id}/leave`, `/api/social/groups/{id}/goals`, `/api/social/challenges`, `/api/social/challenges/{id}/join`
     - Enforce max 20 members per group
@@ -166,7 +166,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - **Property 17: Leave Group Data Integrity** — Verify removal from group + XP/badges unchanged
     - **Validates: Requirements 5.1, 5.4, 5.5, 5.8, 5.9**
 
-  - [~] 8.3 Create frontend social components
+  - [ ] 8.3 Create frontend social components
     - Create `frontend/src/pages/StudyGroups.jsx` with group list, create group form, join by invite code
     - Create `frontend/src/components/StudyGroupCard.jsx` with member avatars preview
     - Create `frontend/src/components/GroupDetail.jsx` with members, shared goals, activity feed (20 recent items)
@@ -177,7 +177,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.6_
 
 - [ ] 9. Expense Auto-Categorization Enhancement
-  - [~] 9.1 Create backend categorization service
+  - [ ] 9.1 Create backend categorization service
     - Create `backend/categorization_service.py` with user-specific merchant-to-category rule storage
     - Store corrections as case-insensitive exact match rules in `user_category_rules` collection
     - Support up to 500 rules per user
@@ -195,7 +195,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - **Validates: Requirements 11.1, 11.2, 11.3, 11.4, 11.5**
 
 - [ ] 10. Enhanced Data Analytics and Trend Detection
-  - [~] 10.1 Create backend analytics service and router
+  - [ ] 10.1 Create backend analytics service and router
     - Create `backend/analytics_service.py` with trend computation (weekly/monthly), anomaly detection, monthly report generation, recovery plan generation
     - Create `backend/analytics_router.py` with `/api/analytics/trends`, `/api/analytics/anomalies`, `/api/analytics/monthly-report`, `/api/analytics/recovery-plan`
     - Weekly trends: require minimum 7 days of data; monthly: minimum 28 days
@@ -210,7 +210,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - **Property 20: Habit Decline Triggers Recovery Plan** — Generate declining habit data, verify plan generation with ≤3 suggestions
     - **Validates: Requirements 6.1, 6.2, 6.3, 6.5**
 
-  - [~] 10.3 Create frontend analytics components
+  - [ ] 10.3 Create frontend analytics components
     - Create `frontend/src/pages/TrendsView.jsx` with interactive line/bar charts, time range selector (7d/30d/90d)
     - Create `frontend/src/components/AnomalyFlag.jsx` for inline spending anomaly indicators
     - Create `frontend/src/components/MonthlyReport.jsx` for financial health report card display
@@ -218,11 +218,11 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - Add Trends view accessible from Daily Hub
     - _Requirements: 6.2, 6.3, 6.6_
 
-- [~] 11. Checkpoint - Ensure all tests pass
+- [ ] 11. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 12. Daily Insights and Life-Balance Scoring
-  - [~] 12.1 Create backend life-balance and daily insights endpoints
+  - [ ] 12.1 Create backend life-balance and daily insights endpoints
     - Create/update `/api/life-balance` endpoint with 5-domain radar scores (Finance, Wellness, Academics, Social, Self-Care), each integer 0–100
     - Compute from user-inputted data: Finance from expense-to-budget ratio + savings progress, Wellness from mood avg + sleep quality, Academics from task completion + study time, Social from group activity, Self-Care from exercise frequency + journal frequency
     - Create/update `/api/insights/daily` endpoint generating exactly 3 AI insight cards (financial tip, wellness suggestion, productivity recommendation) referencing specific user data points
@@ -241,7 +241,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - **Property 31: Partial Data Score Computation** — Verify computation with <7 days includes day count indicator
     - **Validates: Requirements 10.1, 10.2, 10.3, 10.4, 10.6**
 
-  - [~] 12.3 Update frontend Daily Hub with radar chart and insight cards
+  - [ ] 12.3 Update frontend Daily Hub with radar chart and insight cards
     - Add 5-domain life-balance radar chart to Daily Hub AI Summary tab (using recharts)
     - Render 3 AI-generated insight cards from `/api/insights/daily`
     - Highlight domains scoring <40 in red with actionable step
@@ -252,7 +252,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 12.10_
 
 - [ ] 13. Voice Input for Journal Entries
-  - [~] 13.1 Create frontend voice input module and component
+  - [ ] 13.1 Create frontend voice input module and component
     - Create `frontend/src/lib/voiceInput.js` wrapping Web Speech API with `isSupported()`, `start()`, `stop()` interface
     - Create `frontend/src/components/VoiceInputButton.jsx` with mic icon and pulsing recording indicator animation
     - Implement real-time transcript display in journal text area (within 500ms)
@@ -273,14 +273,14 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - **Validates: Requirements 2.3, 2.4, 2.5, 2.6**
 
 - [ ] 14. Offline Support and PWA Capabilities
-  - [~] 14.1 Create service worker and PWA manifest
+  - [ ] 14.1 Create service worker and PWA manifest
     - Create service worker configuration (Workbox) to cache app shell (HTML, CSS, JS, icons)
     - Create `frontend/public/manifest.json` with icons (192×192, 512×512), theme color, display: "standalone"
     - Create `frontend/src/serviceWorkerRegistration.js` for SW registration
     - App must load offline within 3 seconds on subsequent visits
     - _Requirements: 7.1, 7.6_
 
-  - [~] 14.2 Create frontend offline sync module
+  - [ ] 14.2 Create frontend offline sync module
     - Create `frontend/src/lib/offlineSync.js` with IndexedDB storage (save, getAll, getCount, clear, sync)
     - Store mood, expenses, journal, sleep entries offline (max 500 entries)
     - Sync on reconnection within 30 seconds, retry up to 3 times (10s interval)
@@ -288,7 +288,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - Show warning at 500-entry capacity, block new entries until sync
     - _Requirements: 7.2, 7.3, 7.4, 7.8_
 
-  - [~] 14.3 Create frontend offline UI components
+  - [ ] 14.3 Create frontend offline UI components
     - Create `frontend/src/components/OfflineIndicator.jsx` for header offline status banner (show within 2s of connectivity change)
     - Create `frontend/src/components/SyncStatus.jsx` for sync progress indicator
     - Create `frontend/src/components/ConflictResolution.jsx` modal for resolving sync conflicts
@@ -301,11 +301,11 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - **Property 22: Sync Conflict Dual Preservation** — Generate conflicting records, verify both versions preserved with timestamps
     - **Validates: Requirements 7.2, 7.4, 7.8**
 
-- [~] 15. Checkpoint - Ensure all tests pass
+- [ ] 15. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 16. UI Component Integration and Data Input Flows
-  - [~] 16.1 Wire all Daily Hub input components to backend APIs
+  - [ ] 16.1 Wire all Daily Hub input components to backend APIs
     - Ensure mood check-in (mood + energy + stress + motivation sliders) persists via `/api/mood`
     - Ensure expense logging (amount + merchant + category) persists via `/api/expenses`
     - Ensure journal entry (text) persists via `/api/journal`
@@ -315,13 +315,13 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - Display empty states with data input prompts when no user data exists
     - _Requirements: 12.2, 12.3, 12.4_
 
-  - [~] 16.2 Wire Finance Buddy domain input components
+  - [ ] 16.2 Wire Finance Buddy domain input components
     - Ensure expense logging, budget category allocation editing, subscription add/remove, savings goal creation (target amount), split bill entry all functional with real API calls
     - Remove "Scan Receipt" button from Daily Hub Expense tab and Finance Buddy Expenses tab
     - All financial graphs and AI insights derive exclusively from user-inputted entries
     - _Requirements: 12.1, 12.5, 12.12_
 
-  - [~] 16.3 Wire Wellness Buddy domain input components
+  - [ ] 16.3 Wire Wellness Buddy domain input components
     - Ensure daily mood check-in, sleep entry (hours + quality + bedtime/waketime), bedtime goal selection, reflection text entry all functional
     - Wire PHQ-2 questionnaire: collect both answers, POST to `/wellness/phq2`, display AI-generated response card
     - Wire bedtime planner time buttons (10:30pm, 11:00pm, 11:30pm) to POST `/sleep/bedtime-goal`
@@ -329,14 +329,14 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - All wellness scores and AI cards derive exclusively from user-inputted entries
     - _Requirements: 12.6, 12.13, 12.14, 12.17_
 
-  - [~] 16.4 Wire Discover Buddy domain input components
+  - [ ] 16.4 Wire Discover Buddy domain input components
     - Ensure exercise creation (name + body part + target minutes), session start/stop with elapsed time, discovery goal creation all functional
     - Wire "Notify Contact" button to send location notification to emergency contact
     - Wire "SOS" button to initiate emergency call
     - All fitness summaries derive exclusively from user-inputted exercise sessions
     - _Requirements: 12.7, 12.15_
 
-  - [~] 16.5 Wire ChatCenter and AI Summary integrations
+  - [ ] 16.5 Wire ChatCenter and AI Summary integrations
     - ChatCenter: fetch `/life-balance`, `/insights/daily`, `/insights/weekly` and render Helper Buddy command center with radar chart, daily insights, weekly review
     - Daily Hub AI Summary: fetch and render life-balance radar + 3 insight cards
     - Handle partial endpoint failures: render successful sections, show inline error for failed
@@ -344,14 +344,14 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - AI acknowledges missing domain data and encourages user to input it
     - _Requirements: 12.10, 12.11, 12.18, 12.19, 12.20_
 
-  - [~] 16.6 Integrate new features into navigation structure
+  - [ ] 16.6 Integrate new features into navigation structure
     - Add gamification XP display, notification center, social groups, trends view as screens/sections accessible via BottomNav or SubTabs
     - Ensure every interactive element triggers a functional API call or navigates to functional screen
     - No non-functional placeholder buttons
     - _Requirements: 12.1, 12.9, 12.16_
 
 - [ ] 17. Holistic UI/UX Coherence
-  - [~] 17.1 Apply Domain Theme System and typography consistently
+  - [ ] 17.1 Apply Domain Theme System and typography consistently
     - Ensure all pages in PhoneFrame inherit CSS variables (`--bdy`, `--bdy-soft`, `--bdy-2`) from `data-domain` attribute
     - Replace any hardcoded accent colors with `bdy-bg`, `bdy-text`, `bdy-soft`, `bdy-gradient` utilities
     - Apply Outfit font for all headings, card titles, numeric displays, `.font-display`
@@ -360,20 +360,20 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - Apply smooth color transition (200ms, ease-out) on domain changes via BottomNav
     - _Requirements: 13.1, 13.2, 13.6_
 
-  - [~] 17.2 Apply Card, InsightCard, SubTabs, and empty state patterns
+  - [ ] 17.2 Apply Card, InsightCard, SubTabs, and empty state patterns
     - Ensure all content containers use Card component (bg-white, rounded-2xl, p-4, shadow-sm, border border-slate-100)
     - Ensure all AI-generated content uses InsightCard with domain-colored accent background
     - Ensure all buddy page tabbed navigation uses SubTabs pattern (shrink-0, px-3.5, py-1.5, rounded-full, text-xs, font-semibold)
     - Implement empty states with illustration/icon, descriptive text, and CTA for all zero-item views
     - _Requirements: 13.3, 13.7, 13.10_
 
-  - [~] 17.3 Add loading states, error handling, and animations
+  - [ ] 17.3 Add loading states, error handling, and animations
     - Implement skeleton loading states (pulsing placeholder shapes) for all data-fetching sections
     - Implement user-friendly error messages with "Retry" button for all API failures (no raw codes/stack traces)
     - Add framer-motion animations: page transitions (fade-in + upward slide, 200–300ms), level-up celebration (scale-up + particles), achievement badge (slide-in from top), streak milestone (bounce effect)
     - _Requirements: 13.8, 13.9, 13.11_
 
-  - [~] 17.4 Add data-testid attributes and accessibility compliance
+  - [ ] 17.4 Add data-testid attributes and accessibility compliance
     - Add `data-testid` (kebab-case, role-based) on all interactive and key informational elements
     - Ensure all content renders within PhoneFrame (max-w-[420px]), no horizontal overflow at 320–420px
     - Add `aria-label` on all interactive elements
@@ -381,7 +381,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - Ensure WCAG AA contrast ratios: 4.5:1 for normal text, 3:1 for large text against colored backgrounds
     - _Requirements: 13.4, 13.5, 13.12_
 
-- [~] 18. Final Checkpoint - Ensure all tests pass
+- [ ] 18. Final Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

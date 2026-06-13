@@ -4,18 +4,24 @@ import { api } from "../lib/api";
 import { Card, InsightCard } from "../components/SubTabs";
 import Onboarding from "./Onboarding";
 import { ArrowLeft, Pencil, Wallet, Heart, Flame, Sparkles, LogOut, Check, X } from "lucide-react";
+import { useGamification } from "../context/GamificationContext";
+import { useAuth } from "../context/AuthContext";
+import XPProgressBar from "../components/XPProgressBar";
+import StreakCounter from "../components/StreakCounter";
+import AchievementBadge from "../components/AchievementBadge";
 
 const PATTERN_LABELS = {
   spending_style: { label: "Spending style", icon: "💸", map: { careful: "Carefully tracked", impulse: "Impulse buyer", essentials: "Essentials first", mix: "Mix of both" } },
-  saving_habit:   { label: "Extra cash goes to", icon: "🐷", map: { save: "Savings goal", experiences: "Experiences", stuff: "New stuff", share: "Friends & family" } },
+  saving_habit: { label: "Extra cash goes to", icon: "🐷", map: { save: "Savings goal", experiences: "Experiences", stuff: "New stuff", share: "Friends & family" } },
   money_stressor: { label: "Money stressor", icon: "😰", map: { tuition: "Tuition", food: "Daily food", rent: "Rent / hostel", fun: "Going out", none: "Nothing major" } },
-  sleep:           { label: "Sleep pattern", icon: "🌙", map: { "7-8h": "Solid 7–8h", "<6h": "Less than 6h", irregular: "Irregular", late: "Late but enough" } },
-  energy_peak:    { label: "Energy peak", icon: "⚡", map: { morning: "Mornings", afternoon: "Afternoons", evening: "Evenings", night: "Late night" } },
+  sleep: { label: "Sleep pattern", icon: "🌙", map: { "7-8h": "Solid 7–8h", "<6h": "Less than 6h", irregular: "Irregular", late: "Late but enough" } },
+  energy_peak: { label: "Energy peak", icon: "⚡", map: { morning: "Mornings", afternoon: "Afternoons", evening: "Evenings", night: "Late night" } },
   self_care_primary: { label: "Self-care", icon: "🌿", map: { workout: "Workout", music: "Music", walk: "Walking", social: "Friends", meditate: "Meditate" } },
 };
 
 export default function Profile() {
   const nav = useNavigate();
+  const { logout } = useAuth();
   const [profile, setProfile] = useState(null);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
@@ -130,6 +136,8 @@ export default function Profile() {
           </div>
         </Card>
 
+        <GamificationCard />
+
         <Card>
           <div className="flex justify-between items-center">
             <div>
@@ -202,18 +210,92 @@ export default function Profile() {
             </div>
             <Pencil className="w-3.5 h-3.5 text-slate-500" />
           </button>
+          <button
+            onClick={() => {
+              if (!window.confirm("Are you sure you want to log out?")) return;
+              logout();
+              nav("/login", { replace: true });
+            }}
+            data-testid="logout-btn"
+            className="mt-2 w-full flex items-center justify-between p-3 rounded-xl bg-red-50 hover:bg-red-100 active:scale-[0.99]"
+            aria-label="Log out"
+          >
+            <div className="flex items-center gap-2">
+              <LogOut className="w-4 h-4 text-red-500" />
+              <span className="text-sm font-semibold text-red-600">Log out</span>
+            </div>
+          </button>
         </Card>
 
         <Card>
           <h3 className="font-display font-bold text-sm">About</h3>
           <ul className="mt-2 text-xs text-slate-600 space-y-1">
             <li>· PocketBuddy v0.1 — student super-app</li>
-            <li>· Demo mode (no login required)</li>
             <li>· Made for students by Emergent</li>
           </ul>
         </Card>
       </div>
     </div>
+  );
+}
+
+function GamificationCard() {
+  const { status, achievements, loading, error } = useGamification();
+
+  if (loading) {
+    return (
+      <Card>
+        <h3 className="font-display font-bold text-base">Gamification</h3>
+        <div className="mt-3 flex items-center justify-center py-4">
+          <div className="w-5 h-5 border-2 border-slate-300 border-t-[color:var(--bdy)] rounded-full animate-spin" />
+        </div>
+      </Card>
+    );
+  }
+
+  if (error || !status) {
+    return (
+      <Card>
+        <h3 className="font-display font-bold text-base">Gamification</h3>
+        <p className="mt-2 text-xs text-slate-500">Unable to load gamification data.</p>
+      </Card>
+    );
+  }
+
+  // Combine earned and available achievements for display
+  const allBadges = [
+    ...(achievements?.earned || []).map((a) => ({ ...a, earned: true })),
+    ...(achievements?.available || []).map((a) => ({ ...a, earned: false })),
+  ];
+
+  return (
+    <Card>
+      <h3 className="font-display font-bold text-base">Gamification</h3>
+
+      <div className="mt-3 space-y-3">
+        {/* XP Progress */}
+        <XPProgressBar
+          totalXp={status.total_xp}
+          level={status.level}
+          xpToNextLevel={status.xp_to_next_level}
+        />
+
+        {/* Streak */}
+        <StreakCounter streakDays={status.streak_days} />
+
+        {/* Badges grid */}
+        {allBadges.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Badges</p>
+            <div className="grid grid-cols-3 gap-2">
+              {allBadges.map((badge) => (
+                <AchievementBadge key={badge.id || badge.name} achievement={badge} />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
   );
 }
 

@@ -3,6 +3,8 @@ import "./App.css";
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { DomainProvider, useDomain } from "./context/DomainContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { GamificationProvider } from "./context/GamificationContext";
+import LevelUpOverlay from "./components/LevelUpOverlay";
 import { PhoneFrame } from "./components/PhoneFrame";
 import { BottomNav } from "./components/BottomNav";
 import DailyHub from "./pages/DailyHub";
@@ -174,9 +176,12 @@ function AppWrapper() {
   return (
     <AuthProvider>
       <DomainProvider>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
+        <GamificationProvider>
+          <BrowserRouter>
+            <App />
+            <LevelUpOverlay />
+          </BrowserRouter>
+        </GamificationProvider>
       </DomainProvider>
     </AuthProvider>
   );
