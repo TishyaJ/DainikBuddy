@@ -684,8 +684,10 @@ async def auto_balance(payload: Dict[str, Any]):
         if not pool:
             return
         per = round(total / len(pool))
-        for c in pool:
-            asyncio_updates.append((c["id"], per))
+        # assign rounding remainder to last entry so total == budget exactly
+        last = round(total - per * (len(pool) - 1))
+        for i, c in enumerate(pool):
+            asyncio_updates.append((c["id"], last if i == len(pool) - 1 else per))
 
     asyncio_updates = []
     split(needs, income * 0.5)
