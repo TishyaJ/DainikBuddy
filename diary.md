@@ -491,3 +491,67 @@ When a user leaves, `$pull` removes them from both the group's `members` array a
 - **Parent task 8 auto-completed** (both required children done, 8.2 was optional)
 - **All 153 tests passing**
 - **Newly ready tasks**: 9.1 (Categorization service), 10.1 (Analytics), and others from wave 6+
+
+
+---
+
+## June 13, 2026 — Task 9: Expense Auto-Categorization Enhancement
+
+### What happened
+Executed Task 9 (Expense Auto-Categorization Enhancement) — subtask 9.1 (backend categorization service). Task 9.2 (property tests) was optional and skipped. This gives PocketBuddy the ability to learn from user corrections and automatically categorize future expenses from the same merchant.
+
+### Execution Strategy
+- Single subtask (9.1) — the service, endpoint updates, and tests all in one pass
+- Task 9.2 (property tests) optional, skipped for MVP speed
+- Parent task 9 auto-completed since 9.1 was the only required child
+
+### Key Architecture Decisions
+
+**Three-tier cascading categorization:**
+The categorization strategy has a clear priority order:
+1. **User-specific rules** (highest priority) — if the user previously corrected "Gym World" → "health", always use "health" for future "Gym World" expenses
+2. **Keyword detection** (fallback) — if no user rule exists, scan merchant name + note for known keywords (pizza → food, uber → transport, etc.)
+3. **Default "misc"** (last resort) — if nothing matches, assign "misc" and flag `needs_confirmation: true` so the frontend can prompt the user to correct it
+
+This order means user intelligence always wins over generic rules, which is the right UX. A user who categorizes their gym membership as "health" shouldn't have it overridden by a keyword matcher.
+
+**Why case-insensitive exact match (not fuzzy/contains):**
+The spec says "case-insensitive exact match." We store `merchant_lower = merchant.strip().lower()` and query by exact match on that field. This means "Gym World" and "GYM WORLD" match, but "Gym" alone wouldn't match "Gym World." This is intentional — fuzzy matching would create surprising categorizations (e.g., a rule for "Metro" accidentally matching "Metropolitan Museum").
+
+**Why 500 rule cap:**
+The spec mandates max 500 rules per user. This prevents unbounded growth while being generous enough for any realistic user (500 unique merchants covers years of spending). The cap is checked only for NEW rules — overwrites of existing rules always succeed regardless of count (you can always re-correct a merchant).
+
+**Budget adjustment on recategorize:**
+When a user recategorizes an expense, the budget tracker needs updating: decrement the old category's `spent` and increment the new category's `spent`. This maintains budget accuracy without requiring a full recalculation. The regex match (`$regex: f"^{category}$", $options: "i"`) handles case differences between the expense category name and the budget category name.
+
+**`needs_confirmation` response field:**
+The expense creation response includes `needs_confirmation: true` when the system defaulted to "misc." This is a signal to the frontend that it should show a "Confirm or change category?" prompt. The frontend doesn't use this yet (it still sends user-selected categories), but the backend is ready for when Task 16.1 wires it up.
+
+### How the frontend will leverage this (Task 16.1/16.2)
+
+**Current state:**
+- DailyHub expense form has a manual category selector (food/transport/entertainment/education/misc buttons)
+- User explicitly picks a category before saving
+- The `api.post("/expenses", { amount, category, merchant })` sends the user-chosen category
+- Backend accepts it as-is (no auto-categorization triggered because category isn't "auto" or empty)
+
+**Future state (after Task 16.1/16.2):**
+- DailyHub will send `category: "auto"` when the user doesn't manually select a category
+- Backend returns the auto-categorized result + `needs_confirmation` flag
+- If `needs_confirmation: true`, UI shows a toast/prompt: "We categorized this as misc — is that right?"
+- User can tap to correct → calls `POST /api/expenses/{id}/recategorize`
+- That correction gets stored as a rule → future expenses from same merchant are auto-categorized correctly
+- Over time, the user trains the system and almost never needs to manually categorize
+
+This is a "learn from corrections" pattern — the system gets smarter the more the user interacts with it.
+
+### Test Results
+- **173 tests pass** in 17.89 seconds
+- Test breakdown: 41 auth + 27 personality + 36 context + 31 memory + 20 categorization + 18 auth properties
+- All 5 curl verification tests passing against live server
+
+### Current State
+- **Tasks completed**: 1.x ✓, 2.1 ✓, 2.3 ✓, 3 ✓, 4.x ✓, 5.x ✓, 6.x ✓, 7 ✓, 8.x ✓, 9.1 ✓
+- **Parent task 9 auto-completed** (only required child done, 9.2 was optional)
+- **All 173 tests passing**
+- **Next ready tasks**: 10.1 (Analytics service) — per the dependency graph

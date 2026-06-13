@@ -13,6 +13,7 @@ from datetime import datetime, timezone, timedelta
 from emergentintegrations.llm.chat import LlmChat, UserMessage, TextDelta, StreamDone
 from jwt_middleware import get_current_user
 import gamification_service
+import categorization_service
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -304,6 +305,8 @@ async def _seed_main():
 async def on_startup():
     # Ensure unique index on users.email for auth
     await db.users.create_index("email", unique=True, sparse=True)
+    # Ensure indexes for categorization rules
+    await categorization_service.ensure_indexes(db)
     await seed_demo_data()
 
 
@@ -365,7 +368,12 @@ async def get_moods(limit: int = 30, user_id: str = Depends(get_current_user)):
 async def create_expense(e: Expense, user_id: str = Depends(get_current_user)):
     e.user_id = user_id
     if not e.category or e.category == "auto":
-        e.category = detect_category(f"{e.merchant} {e.note}")
+        category, is_misc = await categorization_service.categorize_expense(
+            db, user_id, e.merchant or "", e.note or ""
+        )
+        e.category = category
+    else:
+        is_misc = False
     await db.expenses.insert_one(e.model_dump())
     # update budget spent
     await db.budget_categories.update_one(
@@ -374,7 +382,9 @@ async def create_expense(e: Expense, user_id: str = Depends(get_current_user)):
     )
     # Award gamification XP for expense log
     await gamification_service.award_xp(user_id, "expense_log")
-    return e
+    result = e.model_dump()
+    result["needs_confirmation"] = is_misc
+    return result
 
 
 @api_router.get("/expenses")
@@ -386,6 +396,57 @@ async def get_expenses(limit: int = 50, user_id: str = Depends(get_current_user)
 async def categorize(payload: Dict[str, str], user_id: str = Depends(get_current_user)):
     text = payload.get("text", "")
     return {"category": detect_category(text)}
+
+
+@api_router.post("/expenses/{expense_id}/recategorize")
+async def recategorize_expense(expense_id: str, payload: Dict[str, str], user_id: str = Depends(get_current_user)):
+    """
+    Recategorize an expense and store the correction as a user-specific rule.
+    The new category will be applied to future expenses from the same merchant.
+    """
+    new_category = (payload.get("category") or "").strip()
+    if not new_category:
+        raise HTTPException(400, "Category is required")
+
+    # Find the expense
+    expense = await db.expenses.find_one({"id": expense_id, "user_id": user_id}, {"_id": 0})
+    if not expense:
+        raise HTTPException(404, "Expense not found")
+
+    old_category = expense.get("category", "misc")
+    merchant = expense.get("merchant", "")
+
+    # Update expense category
+    await db.expenses.update_one(
+        {"id": expense_id, "user_id": user_id},
+        {"$set": {"category": new_category}}
+    )
+
+    # Update budget: decrement old category, increment new category
+    if old_category != new_category:
+        amount = expense.get("amount", 0)
+        await db.budget_categories.update_one(
+            {"user_id": user_id, "name": {"$regex": f"^{old_category}$", "$options": "i"}},
+            {"$inc": {"spent": -amount}},
+        )
+        await db.budget_categories.update_one(
+            {"user_id": user_id, "name": {"$regex": f"^{new_category}$", "$options": "i"}},
+            {"$inc": {"spent": amount}},
+        )
+
+    # Store the correction as a user-specific rule (if merchant is present)
+    rule_result = {"success": False, "reason": "No merchant name"}
+    if merchant and merchant.strip():
+        rule_result = await categorization_service.store_category_rule(db, user_id, merchant, new_category)
+
+    return {
+        "id": expense_id,
+        "category": new_category,
+        "previous_category": old_category,
+        "rule_stored": rule_result.get("success", False),
+        "rule_action": rule_result.get("action"),
+        "rule_reason": rule_result.get("reason"),
+    }
 
 
 # ============ JOURNAL ============

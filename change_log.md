@@ -299,3 +299,54 @@ Implemented the complete Smart Notifications and Proactive Nudges system (Task 6
 
 ### Summary
 Completed Task 7 (checkpoint — 153 tests pass) and Task 8 (Social Features). Backend provides full study group lifecycle (create, join by invite code, leave, shared goals with sorted leaderboards, milestone broadcasts, community challenges with XP/badge rewards). Frontend provides a polished social UI with StudyGroups page (tabs, modals), group cards with avatar previews, full group detail with leaderboards and activity feed, 6-char invite code input with validation, and community challenges with progress tracking. Social tab added to BottomNav for easy access.
+
+
+---
+
+## Session: June 13, 2026 — Task 9: Expense Auto-Categorization Enhancement
+
+### Files Created
+| File | Description |
+|------|-------------|
+| `backend/categorization_service.py` | Categorization service — cascading expense categorization (user rules → keyword detection → "misc" default), user-specific merchant-to-category rule storage in `user_category_rules` collection, case-insensitive exact match lookup, 500-rule-per-user capacity cap, overwrite-on-re-correction, compound unique index on (user_id, merchant_lower) |
+| `backend/tests/test_categorization_service.py` | 20 unit tests covering keyword detection (food/transport/entertainment/education/no-match/case-insensitive), get_user_rule (exists/none/empty/case-insensitive), categorize_expense (priority/fallback/misc/empty-merchant), store_category_rule (create/overwrite/capacity-cap/overwrite-at-capacity/empty-merchant/empty-category) |
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `backend/server.py` | Added `import categorization_service` at top; Updated `POST /api/expenses` to use `categorization_service.categorize_expense()` when category is empty or "auto" — returns `needs_confirmation: true` in response when "misc" is assigned; Added `POST /api/expenses/{expense_id}/recategorize` endpoint — updates expense category, adjusts budget spent amounts (decrement old, increment new), stores correction as user-specific rule via `categorization_service.store_category_rule()`; Added `categorization_service.ensure_indexes(db)` in `on_startup` |
+| `change_log.md` | Added this session's log entry |
+| `diary.md` | Added diary entry for this session |
+
+### Key Functions in `categorization_service.py`
+| Function | Purpose |
+|----------|---------|
+| `categorize_expense(db, user_id, merchant, note)` | Main entry — cascading: user rules → keywords → "misc"; returns (category, is_misc) tuple |
+| `get_user_rule(db, user_id, merchant)` | Case-insensitive exact match lookup in `user_category_rules`; returns category or None |
+| `store_category_rule(db, user_id, merchant, category)` | Upsert rule — overwrites existing, enforces 500 cap for new, validates inputs |
+| `_keyword_detect_category(text)` | Keyword-based fallback: food/transport/entertainment/education or None |
+| `ensure_indexes(db)` | Creates compound unique index on (user_id, merchant_lower) |
+
+### Frontend Integration Status
+The frontend **already sends merchant names** in expense creation (DailyHub.jsx and FinanceBuddy.jsx) but currently sends a **user-selected category** rather than `"auto"`. The categorization service is fully functional on the backend and will be leveraged when:
+1. Task 16.1 (UI Integration) wires DailyHub to send `category: "auto"` (triggering server-side categorization)
+2. Task 16.2 (Finance Buddy) adds a recategorize UI when `needs_confirmation: true` is returned
+
+Currently the backend will still auto-categorize if the frontend sends `category: "auto"` or an empty category — the logic is ready and waiting for the frontend integration task.
+
+### API Verification (curl tests against live server — all passing)
+| # | Test | Result |
+|---|------|--------|
+| 1 | `POST /api/expenses` with `category:"auto"`, merchant "Pizza Hut" | ✓ `category: "food"`, `needs_confirmation: false` (keyword match) |
+| 2 | `POST /api/expenses` with `category:"auto"`, merchant "Gym World" | ✓ `category: "misc"`, `needs_confirmation: true` (no match) |
+| 3 | `POST /api/expenses/{id}/recategorize` with `category:"health"` | ✓ `rule_stored: true`, `rule_action: "created"` |
+| 4 | `POST /api/expenses` with `category:"auto"`, merchant "Gym World" (again) | ✓ `category: "health"`, `needs_confirmation: false` (user rule applied) |
+| 5 | `POST /api/expenses` with `category:"auto"`, merchant "GYM WORLD" (uppercase) | ✓ `category: "health"` (case-insensitive match) |
+
+### Test Results
+- **173 tests pass** in 17.89 seconds (153 existing + 20 new categorization tests)
+- 1 warning (starlette multipart deprecation — not our code)
+- No failures, no errors
+
+### Summary
+Implemented the complete Expense Auto-Categorization Enhancement (Task 9, subtask 9.1). The backend now supports intelligent expense categorization with a three-tier cascading strategy: user-learned rules take priority, then keyword detection, then default to "misc" with a confirmation prompt. Users can correct categories via the recategorize endpoint, which stores rules for future automatic application. The system supports up to 500 rules per user with case-insensitive matching. Task 9.2 (property tests) was optional and skipped. Parent task 9 auto-completed.

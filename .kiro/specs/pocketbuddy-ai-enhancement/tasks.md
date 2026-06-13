@@ -176,8 +176,8 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - Add navigation to social features via BottomNav or SubTabs
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.6_
 
-- [ ] 9. Expense Auto-Categorization Enhancement
-  - [ ] 9.1 Create backend categorization service
+- [x] 9. Expense Auto-Categorization Enhancement
+  - [x] 9.1 Create backend categorization service
     - Create `backend/categorization_service.py` with user-specific merchant-to-category rule storage
     - Store corrections as case-insensitive exact match rules in `user_category_rules` collection
     - Support up to 500 rules per user
