@@ -1095,12 +1095,119 @@ async def life_balance(user_id: str = Depends(get_current_user)):
 
 @api_router.get("/insights/daily")
 async def daily_insights(user_id: str = Depends(get_current_user)):
-    return [
-        {"domain": "finance", "title": "Snacks spending up 22%", "detail": "Try hostel mess twice this week to save ~₹250.", "icon": "trending-up"},
-        {"domain": "wellness", "title": "Sleep dropped 45 min", "detail": "Aim for a 11:30pm bedtime tonight.", "icon": "moon"},
-        {"domain": "productivity", "title": "Goals 71% on track", "detail": "Sleep goal needs attention this week.", "icon": "target"},
-        {"domain": "discover", "title": "New deal nearby", "detail": "Flat 20% off at Mess Express today only.", "icon": "compass"},
-    ]
+    from context_engine import assemble_context, detect_correlations
+
+    try:
+        # Assemble user context for generating insights
+        ctx = await assemble_context(db, user_id)
+        raw = ctx.get("raw_data", {})
+
+        # Generate base insight cards from real user data
+        insights = []
+
+        # Financial tip
+        expense_data = raw.get("expenses", {})
+        if expense_data:
+            total_spent = expense_data.get("total_spent", 0)
+            by_category = expense_data.get("by_category", {})
+            top_cat = max(by_category, key=by_category.get) if by_category else "misc"
+            top_amount = by_category.get(top_cat, 0) if by_category else 0
+            if total_spent > 0:
+                pct = int(top_amount / total_spent * 100)
+                insights.append({
+                    "domain": "finance",
+                    "title": f"{top_cat.capitalize()} spending is {pct}% of total",
+                    "detail": f"You spent ₹{int(top_amount)} on {top_cat} this week. Consider setting a budget limit.",
+                    "icon": "trending-up",
+                })
+            else:
+                insights.append({
+                    "domain": "finance",
+                    "title": "Track your expenses",
+                    "detail": "Start logging expenses to get personalized finance tips.",
+                    "icon": "wallet",
+                })
+        else:
+            insights.append({
+                "domain": "finance",
+                "title": "Track your expenses",
+                "detail": "Start logging expenses to get personalized finance tips.",
+                "icon": "wallet",
+            })
+
+        # Wellness suggestion
+        mood_data = raw.get("mood", {})
+        sleep_data = raw.get("sleep", {})
+        if mood_data or sleep_data:
+            avg_stress = mood_data.get("avg_stress", 50) if mood_data else 50
+            avg_sleep = sleep_data.get("avg_hours", 7) if sleep_data else 7
+            if avg_stress > 60:
+                insights.append({
+                    "domain": "wellness",
+                    "title": f"Stress level at {int(avg_stress)}/100",
+                    "detail": "Try a 5-min breathing exercise or a short walk today.",
+                    "icon": "heart",
+                })
+            elif avg_sleep < 7:
+                insights.append({
+                    "domain": "wellness",
+                    "title": f"Sleep averaging {avg_sleep:.1f}h",
+                    "detail": "Aim for a consistent bedtime tonight to improve rest.",
+                    "icon": "moon",
+                })
+            else:
+                insights.append({
+                    "domain": "wellness",
+                    "title": "Wellness on track",
+                    "detail": "Keep up the good sleep and stress management!",
+                    "icon": "smile",
+                })
+        else:
+            insights.append({
+                "domain": "wellness",
+                "title": "Check in with your mood",
+                "detail": "Log your mood daily to get wellness insights.",
+                "icon": "heart",
+            })
+
+        # Productivity recommendation
+        task_data = raw.get("tasks", {})
+        if task_data:
+            completion_rate = task_data.get("completion_rate", 0)
+            insights.append({
+                "domain": "productivity",
+                "title": f"Tasks {int(completion_rate)}% complete",
+                "detail": "Focus on your top priority task first thing tomorrow." if completion_rate < 70 else "Great progress! Keep the momentum going.",
+                "icon": "target",
+            })
+        else:
+            insights.append({
+                "domain": "productivity",
+                "title": "Set your goals",
+                "detail": "Add tasks to track your productivity this week.",
+                "icon": "target",
+            })
+
+        # Detect and append correlation insights
+        correlation_insights = await detect_correlations(db, user_id)
+        for corr in correlation_insights:
+            insights.append({
+                "domain": corr.get("domain", "correlation"),
+                "title": corr["title"],
+                "detail": corr["detail"],
+                "icon": corr.get("icon", "alert-circle"),
+            })
+
+        return insights
+
+    except Exception as e:
+        logger.error(f"Error generating daily insights for {user_id}: {e}")
+        # Fallback to basic insights on error
+        return [
+            {"domain": "finance", "title": "Track your spending", "detail": "Log expenses to get personalized tips.", "icon": "wallet"},
+            {"domain": "wellness", "title": "Check in today", "detail": "Log your mood for wellness insights.", "icon": "heart"},
+            {"domain": "productivity", "title": "Stay on track", "detail": "Review your goals for the week.", "icon": "target"},
+        ]
 
 
 @api_router.get("/insights/weekly")
@@ -1154,6 +1261,40 @@ async def chat_stream(buddy: str, req: ChatRequest, user_id: str = Depends(get_c
     else:
         pattern_block = f"\n\nThe user is named {user_name}."
     system = base_system + pattern_block
+
+    # Include cross-domain context for richer responses
+    try:
+        from context_engine import assemble_context, get_wellness_context_for_finance
+
+        ctx = await assemble_context(db, user_id)
+        raw = ctx.get("raw_data", {})
+
+        # Build a brief context summary for all buddies
+        context_parts = []
+        if raw.get("mood"):
+            context_parts.append(
+                f"Mood: avg stress {raw['mood'].get('avg_stress', 50)}/100, "
+                f"energy {raw['mood'].get('avg_energy', 50)}/100"
+            )
+        if raw.get("sleep"):
+            context_parts.append(f"Sleep: avg {raw['sleep'].get('avg_hours', 7)}h/night")
+        if raw.get("expenses"):
+            context_parts.append(f"Spending: ₹{int(raw['expenses'].get('total_spent', 0))} this week")
+        if raw.get("tasks"):
+            context_parts.append(f"Tasks: {raw['tasks'].get('completion_rate', 0):.0f}% done")
+
+        if context_parts:
+            system += f"\n\n[User's 7-day context: {'; '.join(context_parts)}]"
+
+        # Finance buddy: include wellness context when stress > 60 or sleep < 6.5h
+        if buddy == "finance":
+            wellness_ctx = await get_wellness_context_for_finance(db, user_id)
+            if wellness_ctx:
+                system += wellness_ctx
+
+    except Exception as e:
+        logger.warning(f"Failed to assemble context for chat: {e}")
+        # Proceed without context - graceful degradation
 
     # store user message
     await db.chat_messages.insert_one(ChatMessage(user_id=user_id, buddy=buddy, role="user", content=req.message).model_dump())

@@ -66,8 +66,8 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
 - [x] 3. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [-] 4. Cross-Domain AI Context Engine
-  - [-] 4.1 Create backend context engine service
+- [x] 4. Cross-Domain AI Context Engine
+  - [x] 4.1 Create backend context engine service
     - Create `backend/context_engine.py` that assembles 7-day user data (mood, expenses, sleep, goals, burnout score) into a unified context object
     - Compute financial_health_score (0–100), wellness_composite_score (0–100), habit_consistency_percentage (0–100), active_stressors (max 10 items)
     - Implement graceful degradation: proceed with available data if a domain fails, indicate unavailable domains
@@ -75,7 +75,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - Context assembly must complete within 2 seconds
     - _Requirements: 1.1, 1.4, 1.6, 1.7_
 
-  - [ ] 4.2 Implement cross-domain correlation detection
+  - [x] 4.2 Implement cross-domain correlation detection
     - Detect emotional-eating pattern: stress > 70 AND food spending +30% vs prior 7 days
     - Detect burnout-risk: sleep avg < 6h for 3 consecutive days AND task completion < 50%
     - Surface correlation insights as InsightCards in Daily Hub AI Summary tab

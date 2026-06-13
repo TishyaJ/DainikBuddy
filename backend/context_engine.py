@@ -584,3 +584,228 @@ def _compute_cross_domain_correlations(
             })
 
     return correlations
+
+
+def _has_consecutive_poor_sleep(sleeps: List[Dict[str, Any]], threshold: float = 6.0, consecutive_days: int = 3) -> bool:
+    """
+    Check if there are N consecutive days with sleep < threshold hours.
+    
+    Sleeps should be sorted by date. We group by date and check for consecutive
+    days meeting the condition.
+    """
+    if len(sleeps) < consecutive_days:
+        return False
+
+    # Group sleep hours by date
+    daily_hours: Dict[str, float] = {}
+    for s in sleeps:
+        date_str = s.get("date", s.get("created_at", ""))
+        try:
+            dt = datetime.fromisoformat(date_str)
+            day_key = dt.strftime("%Y-%m-%d")
+            # If multiple entries per day, use the max (most sleep)
+            if day_key in daily_hours:
+                daily_hours[day_key] = max(daily_hours[day_key], s.get("hours", 7))
+            else:
+                daily_hours[day_key] = s.get("hours", 7)
+        except (ValueError, TypeError):
+            continue
+
+    if len(daily_hours) < consecutive_days:
+        return False
+
+    # Sort dates and check for consecutive poor sleep days
+    sorted_dates = sorted(daily_hours.keys())
+    consecutive_count = 0
+
+    for i, date_key in enumerate(sorted_dates):
+        if daily_hours[date_key] < threshold:
+            consecutive_count += 1
+            if consecutive_count >= consecutive_days:
+                return True
+        else:
+            consecutive_count = 0
+
+        # Also verify the dates are actually consecutive (no gaps)
+        if i > 0 and consecutive_count > 1:
+            prev_date = datetime.strptime(sorted_dates[i - 1], "%Y-%m-%d").date()
+            curr_date = datetime.strptime(date_key, "%Y-%m-%d").date()
+            if (curr_date - prev_date).days != 1:
+                consecutive_count = 1 if daily_hours[date_key] < threshold else 0
+
+    return False
+
+
+async def detect_correlations(db, user_id: str) -> List[Dict[str, Any]]:
+    """
+    Detect cross-domain correlations with enhanced logic.
+    
+    Requirements 1.2, 1.3, 1.5:
+    - Emotional eating: stress > 70 AND food spending +30% vs prior 7 days
+    - Burnout risk: sleep < 6h for 3 CONSECUTIVE days AND task completion < 50%
+    - Returns list of correlation insight dicts with type, title, detail, icon
+    
+    This function fetches data from both the current 7 days AND the prior 7 days
+    (days 8-14 ago) to perform period-over-period comparisons.
+    """
+    now = datetime.now(timezone.utc)
+    seven_days_ago = (now - timedelta(days=7)).isoformat()
+    fourteen_days_ago = (now - timedelta(days=14)).isoformat()
+
+    correlations: List[Dict[str, Any]] = []
+
+    # Fetch current period data (last 7 days)
+    current_moods, current_expenses, current_sleeps, current_tasks = await asyncio.gather(
+        _fetch_domain_data(db, user_id, "mood_entries", "created_at", seven_days_ago),
+        _fetch_domain_data(db, user_id, "expenses", "created_at", seven_days_ago),
+        _fetch_domain_data(db, user_id, "sleep_entries", "date", seven_days_ago),
+        _fetch_domain_data(db, user_id, "tasks", "created_at", seven_days_ago),
+    )
+
+    # Fetch prior period data (days 8-14) for comparison
+    prior_expenses_all = await _fetch_domain_data(
+        db, user_id, "expenses", "created_at", fourteen_days_ago, limit=1000
+    )
+    # Filter to only the prior period (between 14 and 7 days ago)
+    prior_expenses = [
+        e for e in prior_expenses_all
+        if e.get("created_at", "") < seven_days_ago
+    ]
+
+    # Check data sufficiency
+    data_days = _count_unique_data_days(current_moods, current_sleeps, current_expenses)
+    if data_days < MIN_DAYS_FOR_CORRELATIONS:
+        return []
+
+    # --- Emotional Eating Detection ---
+    # Stress > 70 AND food spending +30% vs prior 7 days
+    if current_moods and current_expenses:
+        avg_stress = sum(m.get("stress", 50) for m in current_moods) / len(current_moods)
+
+        if avg_stress > 70:
+            # Calculate current period food spending
+            current_food_spending = sum(
+                e.get("amount", 0) for e in current_expenses
+                if e.get("category") == "food"
+            )
+            # Calculate prior period food spending
+            prior_food_spending = sum(
+                e.get("amount", 0) for e in prior_expenses
+                if e.get("category") == "food"
+            )
+
+            # Check for +30% increase (only if prior period has data)
+            if prior_food_spending > 0:
+                increase_pct = ((current_food_spending - prior_food_spending) / prior_food_spending) * 100
+                if increase_pct > 30:
+                    correlations.append({
+                        "type": "emotional_eating",
+                        "domain": "correlation",
+                        "title": "Emotional Eating Pattern Detected",
+                        "detail": (
+                            f"Your stress is high ({int(avg_stress)}/100) and food spending "
+                            f"increased {int(increase_pct)}% vs last week. Consider mindful "
+                            f"eating or a stress-relief activity instead."
+                        ),
+                        "icon": "alert-triangle",
+                    })
+
+    # --- Burnout Risk Detection ---
+    # Sleep < 6h for 3 CONSECUTIVE days AND task completion < 50%
+    if current_sleeps and current_tasks:
+        has_consecutive_poor_sleep = _has_consecutive_poor_sleep(
+            current_sleeps, threshold=6.0, consecutive_days=3
+        )
+
+        if has_consecutive_poor_sleep:
+            completed_tasks = sum(1 for t in current_tasks if t.get("status") == "done")
+            total_tasks = len(current_tasks)
+            completion_rate = completed_tasks / total_tasks if total_tasks > 0 else 1.0
+
+            if completion_rate < 0.5:
+                avg_sleep = sum(s.get("hours", 7) for s in current_sleeps) / len(current_sleeps)
+                correlations.append({
+                    "type": "burnout_risk",
+                    "domain": "correlation",
+                    "title": "Burnout Risk Alert",
+                    "detail": (
+                        f"You've slept under 6h for 3+ consecutive days (avg {avg_sleep:.1f}h) "
+                        f"and task completion is at {int(completion_rate * 100)}%. "
+                        f"Consider taking a recovery day."
+                    ),
+                    "icon": "alert-circle",
+                })
+
+    # --- Financial Stress (retained from original) ---
+    if current_moods:
+        avg_stress = sum(m.get("stress", 50) for m in current_moods) / len(current_moods)
+        try:
+            budget_categories = await db["budget_categories"].find(
+                {"user_id": user_id}, {"_id": 0}
+            ).to_list(100)
+        except Exception:
+            budget_categories = []
+
+        if budget_categories:
+            total_allocated = sum(cat.get("allocated", 0) for cat in budget_categories)
+            total_spent = sum(cat.get("spent", 0) for cat in budget_categories)
+
+            if total_allocated > 0 and total_spent > total_allocated and avg_stress > 60:
+                correlations.append({
+                    "type": "financial_stress",
+                    "domain": "correlation",
+                    "title": "Financial Stress Detected",
+                    "detail": (
+                        f"You've overspent your budget ({int(total_spent / total_allocated * 100)}% used) "
+                        f"and stress is elevated ({int(avg_stress)}/100). "
+                        f"Review non-essential spending this week."
+                    ),
+                    "icon": "trending-down",
+                })
+
+    return correlations
+
+
+async def get_wellness_context_for_finance(db, user_id: str) -> Optional[str]:
+    """
+    Get wellness context string to prepend to Finance Buddy's system prompt.
+    
+    Requirement 1.5: When stress > 60 or sleep avg < 6.5h, include wellness data.
+    
+    Returns a context string if thresholds are crossed, None otherwise.
+    """
+    now = datetime.now(timezone.utc)
+    seven_days_ago = (now - timedelta(days=7)).isoformat()
+
+    moods, sleeps = await asyncio.gather(
+        _fetch_domain_data(db, user_id, "mood_entries", "created_at", seven_days_ago),
+        _fetch_domain_data(db, user_id, "sleep_entries", "date", seven_days_ago),
+    )
+
+    wellness_notes = []
+
+    if moods:
+        avg_stress = sum(m.get("stress", 50) for m in moods) / len(moods)
+        if avg_stress > 60:
+            wellness_notes.append(
+                f"The user's stress level is elevated ({int(avg_stress)}/100 over the past week). "
+                f"Consider how financial decisions may be affected by stress."
+            )
+
+    if sleeps:
+        avg_sleep = sum(s.get("hours", 7) for s in sleeps) / len(sleeps)
+        if avg_sleep < 6.5:
+            wellness_notes.append(
+                f"The user is sleep-deprived (avg {avg_sleep:.1f}h/night over 7 days). "
+                f"Fatigue can impair financial decision-making."
+            )
+
+    if wellness_notes:
+        return (
+            "\n\n[WELLNESS CONTEXT - The user's wellbeing may affect financial decisions]\n"
+            + "\n".join(wellness_notes)
+            + "\nPlease gently acknowledge how their wellbeing relates to the financial topic "
+            "and suggest small, supportive steps."
+        )
+
+    return None
