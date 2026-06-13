@@ -353,8 +353,26 @@ async def get_budget():
 
 @api_router.patch("/budget/{cat_id}")
 async def update_budget(cat_id: str, payload: Dict[str, Any]):
+    payload.pop("id", None); payload.pop("user_id", None)
     await db.budget_categories.update_one({"id": cat_id, "user_id": DEMO_USER}, {"$set": payload})
     return await db.budget_categories.find_one({"id": cat_id}, {"_id": 0})
+
+
+@api_router.post("/budget")
+async def create_budget_category(payload: Dict[str, Any]):
+    name = (payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "Name required")
+    allocated = float(payload.get("allocated") or 0)
+    cat = BudgetCategory(user_id=DEMO_USER, name=name, allocated=allocated, spent=0)
+    await db.budget_categories.insert_one(cat.model_dump())
+    return cat
+
+
+@api_router.delete("/budget/{cat_id}")
+async def delete_budget_category(cat_id: str):
+    res = await db.budget_categories.delete_one({"id": cat_id, "user_id": DEMO_USER})
+    return {"deleted": res.deleted_count}
 
 
 # ============ SUBSCRIPTIONS / SAVINGS / SPLITS ============

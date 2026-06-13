@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Header } from "../components/Header";
 import { SubTabs, Card, InsightCard } from "../components/SubTabs";
-import { Wallet, TrendingUp, Camera, AlertTriangle, CreditCard, Plane, ShieldCheck, PiggyBank, Users, Sparkles } from "lucide-react";
+import { Wallet, TrendingUp, Camera, AlertTriangle, CreditCard, Plane, ShieldCheck, PiggyBank, Users, Sparkles, Plus, Pencil, Check, X, Trash2 } from "lucide-react";
 import { api } from "../lib/api";
 import { BarChart, Bar, XAxis, ResponsiveContainer, LineChart, Line, Cell } from "recharts";
 
@@ -312,8 +312,182 @@ const Splits = () => {
   );
 };
 
+const BudgetEditor = () => {
+  const [cats, setCats] = useState([]);
+  const [editingId, setEditingId] = useState(null);
+  const [draft, setDraft] = useState({ name: "", allocated: "" });
+  const [newCat, setNewCat] = useState({ name: "", allocated: "" });
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => setCats((await api.get("/budget")).data.categories);
+  useEffect(() => { load(); }, []);
+
+  const totalAlloc = cats.reduce((s, c) => s + c.allocated, 0);
+
+  const startEdit = (c) => {
+    setEditingId(c.id);
+    setDraft({ name: c.name, allocated: c.allocated });
+  };
+
+  const saveEdit = async () => {
+    if (!draft.name.trim()) return;
+    setBusy(true);
+    await api.patch(`/budget/${editingId}`, { name: draft.name.trim(), allocated: parseFloat(draft.allocated) || 0 });
+    setEditingId(null);
+    await load();
+    setBusy(false);
+  };
+
+  const remove = async (id) => {
+    if (!window.confirm("Delete this category? Tracked expenses will remain.")) return;
+    await api.delete(`/budget/${id}`);
+    await load();
+  };
+
+  const addCat = async () => {
+    if (!newCat.name.trim()) return;
+    setBusy(true);
+    await api.post("/budget", { name: newCat.name.trim(), allocated: parseFloat(newCat.allocated) || 0 });
+    setNewCat({ name: "", allocated: "" });
+    await load();
+    setBusy(false);
+  };
+
+  return (
+    <div className="mx-5 mt-4 space-y-3">
+      <Card>
+        <div className="flex justify-between items-start">
+          <div>
+            <h3 className="font-display font-bold text-base">Envelope Budgeting</h3>
+            <p className="text-xs text-slate-500">Allocate per category. Edit anytime.</p>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] text-slate-500 font-semibold">TOTAL</div>
+            <div className="font-display font-bold text-lg bdy-text">₹{totalAlloc.toLocaleString()}</div>
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-2" data-testid="budget-edit-list">
+          {cats.map((c) => {
+            const isEditing = editingId === c.id;
+            const pct = c.allocated ? Math.round((c.spent / c.allocated) * 100) : 0;
+            return (
+              <div key={c.id} className="p-3 rounded-xl bg-slate-50" data-testid={`budget-row-${c.id}`}>
+                {isEditing ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      data-testid="edit-cat-name"
+                      value={draft.name}
+                      onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                      className="flex-1 bg-white rounded-lg px-2.5 py-1.5 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]"
+                      placeholder="Name"
+                    />
+                    <input
+                      data-testid="edit-cat-amount"
+                      type="number"
+                      value={draft.allocated}
+                      onChange={(e) => setDraft({ ...draft, allocated: e.target.value })}
+                      className="w-24 bg-white rounded-lg px-2.5 py-1.5 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]"
+                      placeholder="₹"
+                    />
+                    <button
+                      onClick={saveEdit}
+                      disabled={busy}
+                      data-testid={`save-edit-${c.id}`}
+                      className="w-8 h-8 rounded-lg bdy-bg text-white flex items-center justify-center active:scale-95"
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      data-testid={`cancel-edit-${c.id}`}
+                      className="w-8 h-8 rounded-lg bg-slate-200 text-slate-700 flex items-center justify-center"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex justify-between items-center">
+                      <div className="flex-1">
+                        <div className="text-sm font-semibold">{c.name}</div>
+                        <div className="text-[11px] text-slate-500">
+                          ₹{c.spent.toLocaleString()} of ₹{c.allocated.toLocaleString()}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => startEdit(c)}
+                        data-testid={`edit-cat-${c.id}`}
+                        className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:bdy-text"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => remove(c.id)}
+                        data-testid={`delete-cat-${c.id}`}
+                        className="w-7 h-7 ml-1 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-rose-500 hover:bg-rose-50"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="h-1.5 mt-2 rounded-full bg-slate-200 overflow-hidden">
+                      <div
+                        className={`h-full ${pct > 90 ? "bg-rose-500" : pct > 70 ? "bg-amber-500" : "bdy-bg"}`}
+                        style={{ width: `${Math.min(pct, 100)}%` }}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })}
+          {cats.length === 0 && (
+            <p className="text-xs text-slate-400 text-center py-4">No categories yet. Add your first one below.</p>
+          )}
+        </div>
+      </Card>
+
+      <Card>
+        <h4 className="font-display font-bold text-sm">Add Custom Category</h4>
+        <p className="text-xs text-slate-500">Books, gym, subscriptions, anything you track.</p>
+        <div className="flex gap-2 mt-3">
+          <input
+            data-testid="new-cat-name"
+            value={newCat.name}
+            onChange={(e) => setNewCat({ ...newCat, name: e.target.value })}
+            placeholder="Category name"
+            className="flex-1 bg-slate-50 rounded-xl px-3 py-2.5 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]"
+          />
+          <input
+            data-testid="new-cat-amount"
+            type="number"
+            value={newCat.allocated}
+            onChange={(e) => setNewCat({ ...newCat, allocated: e.target.value })}
+            placeholder="₹"
+            className="w-24 bg-slate-50 rounded-xl px-3 py-2.5 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]"
+          />
+        </div>
+        <button
+          onClick={addCat}
+          disabled={busy || !newCat.name.trim()}
+          data-testid="add-cat-btn"
+          className="w-full mt-3 bdy-bg text-white font-semibold py-2.5 rounded-xl flex items-center justify-center gap-1 disabled:opacity-50 active:scale-95"
+        >
+          <Plus className="w-4 h-4" /> Add Category
+        </button>
+        <InsightCard
+          icon={Sparkles}
+          title="Wizard tip"
+          text="Use the 50/30/20 rule — 50% needs, 30% wants, 20% savings. Adjust allocations till total matches your monthly income."
+        />
+      </Card>
+    </div>
+  );
+};
+
 const TABS = [
   { key: "dash", label: "Dashboard", C: Dashboard },
+  { key: "budget", label: "Budget", C: BudgetEditor },
   { key: "exp", label: "Expenses", C: Expenses },
   { key: "cash", label: "Cash Flow", C: CashFlow },
   { key: "alerts", label: "Alerts", C: Alerts },
