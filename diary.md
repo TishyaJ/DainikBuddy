@@ -137,3 +137,81 @@ Removed the duplicate index creation from auth_router.py. The startup handler is
 - Frontend running on port 3001 ✓
 - Auth fully working (register, login, token refresh, protected endpoints)
 - All 8 manual curl tests passing
+
+---
+
+## June 13, 2026 — Task 4: Cross-Domain AI Context Engine
+
+### What happened
+Executed Task 4 (Cross-Domain AI Context Engine) — subtasks 4.1 and 4.2. This is the "brain" of the enhanced PocketBuddy: the module that connects disparate user data streams (mood, finances, sleep, goals, tasks) into a unified intelligence layer that all AI buddies can tap into.
+
+### Execution Strategy
+- **4.1 first** (context engine service) — creates the core module that 4.2 builds upon
+- **4.2 second** (correlation detection + endpoint wiring) — depends on 4.1's `assemble_context()` function existing
+- Sequential execution was necessary since 4.2 imports and extends the module created in 4.1
+
+### Key Architecture Decisions
+
+**Why `db` as parameter, not imported:**
+The context engine accepts the Motor database instance as a function parameter rather than importing it from server.py. This was deliberate:
+- Enables unit testing with mock databases (no real MongoDB needed)
+- Avoids circular imports (server.py imports context_engine, so context_engine can't import server.py)
+- Makes the module reusable from any entry point (CLI scripts, background workers, etc.)
+
+**Why asyncio.gather for data fetching:**
+All 5 domain queries (mood, expenses, sleep, goals, tasks) are independent — they can run concurrently. Using `asyncio.gather` means the total fetch time is the max of any single query, not the sum. This helps meet the "within 2 seconds" requirement even with slow MongoDB Atlas connections.
+
+**Graceful degradation via `_safe_fetch`:**
+Each domain fetch is wrapped in try/except. If MongoDB times out or errors on one collection, the others still succeed. The response marks which domains are `unavailable` so the AI can acknowledge gaps ("I don't have your sleep data right now").
+
+**Data sufficiency guard:**
+If the user has fewer than 3 unique days with data across all domains, cross-domain correlations are skipped entirely. This prevents spurious pattern detection from minimal data (e.g., "you're stressed and spending" based on a single day's entries).
+
+**Period-over-period comparison for emotional eating:**
+The spec requires detecting "+30% food spending vs prior 7 days." This means we need TWO periods: current (days 1-7) and prior (days 8-14). The implementation fetches 14 days of expenses, filters into two windows, and compares food category totals. Simple average wouldn't work — it needs to be total spending comparison.
+
+**Consecutive day detection for burnout:**
+The spec says "3 consecutive days" of poor sleep, not "3 days average." So we can't just average — we group sleep entries by calendar date, sort them, and walk through looking for runs of 3+ days where each day has sleep < 6h AND the dates are actually consecutive (no gaps). Edge cases: multiple sleep entries per day use the max (most generous interpretation), and date gaps reset the counter.
+
+### What changed in server.py
+
+**`/api/insights/daily`** — Previously returned 4 hardcoded insight objects. Now:
+1. Calls `assemble_context()` to get real scores and raw data
+2. Generates 3 dynamic insight cards from actual user data:
+   - Finance: identifies top spending category and its percentage
+   - Wellness: checks stress or sleep levels, provides contextual suggestion
+   - Productivity: shows task completion rate with appropriate encouragement
+3. Calls `detect_correlations()` and appends any detected patterns as additional InsightCards
+4. Falls back to generic "start logging" messages if no data exists in a domain
+5. Entire flow wrapped in try/except — falls back to template cards on error
+
+**`/api/chat/{buddy}`** — Previously just used the static BUDDY_MODELS system prompt. Now:
+1. Before generating AI response, calls `assemble_context()` to get cross-domain data
+2. Appends a brief 7-day context summary to the system prompt for ALL buddies (so they can reference real data)
+3. For "finance" buddy specifically: if stress > 60 OR sleep avg < 6.5h, prepends the wellness context string from `get_wellness_context_for_finance()`
+4. This means Finance Buddy will now say things like "I notice your stress is elevated — when we're stressed, impulse spending often increases..."
+5. Wrapped in try/except — if context assembly fails, the chat still works with just the base system prompt
+
+### Impact on User Experience
+Before this task:
+- AI buddies operated in isolation — Finance Buddy knew nothing about sleep, Wellness Buddy knew nothing about spending
+- Daily insights were hardcoded placeholder text
+- No correlation detection existed
+
+After this task:
+- All AI buddies receive a 7-day cross-domain context summary
+- Finance Buddy acknowledges wellness factors when relevant
+- Daily Hub shows dynamic insights computed from real user data
+- Correlation-based alerts (emotional eating, burnout risk, financial stress) surface automatically when patterns are detected
+- System gracefully handles missing data with helpful prompts to start logging
+
+### Test Coverage
+- 36 new unit tests in `test_context_engine.py`
+- Tests cover: score computation edge cases (empty data, extreme values), graceful degradation (simulated DB failures), data sufficiency guard (< 3 days), correlation detection (emotional eating, burnout, financial stress, and absence when data is normal), full assembly with mocked Motor
+- All 95 total project tests passing
+
+### Current State
+- **Tasks completed**: 1.1 ✓, 1.2 ✓, 1.3 ✓, 1.4 ✓, 2.1 ✓, 2.3 ✓, 3 ✓, 4.1 ✓, 4.2 ✓
+- **Parent task 4 auto-completed** (both children done)
+- **Newly ready tasks**: 5.1 (Conversation memory), 9.1 (Categorization service) — unlocked by 4.1 completion per wave 3 in dependency graph
+- **All tests passing**: 95/95

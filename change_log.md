@@ -106,3 +106,44 @@ Removed the redundant `create_index` call from `auth_router.py`'s register endpo
 6. ✓ Invalid password format → 400
 7. ✓ Protected endpoint with token → works
 8. ✓ Protected endpoint without token → 401
+
+---
+
+## Session: June 13, 2026 — Task 4: Cross-Domain AI Context Engine
+
+### Files Created
+| File | Description |
+|------|-------------|
+| `backend/context_engine.py` | Cross-domain AI context engine — assembles 7-day user data into unified context object, computes financial_health_score (0–100), wellness_composite_score (0–100), habit_consistency_percentage (0–100), active_stressors (max 10), detects cross-domain correlations (emotional eating, burnout risk, financial stress), provides wellness context for Finance Buddy |
+| `backend/tests/test_context_engine.py` | 36 unit tests for the context engine — covers score computations, graceful degradation on domain failures, data sufficiency guard, cross-domain correlations, full context assembly with mocked Motor DB |
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `backend/server.py` | Updated `/api/insights/daily` endpoint — replaced hardcoded insight cards with dynamic generation using `assemble_context()` and `detect_correlations()` from context_engine; generates 3 base cards (finance, wellness, productivity) from real user data plus appended correlation insights; Updated `/api/chat/{buddy}` (`chat_stream`) — now calls `assemble_context()` before AI generation, injects cross-domain context summary into system prompt for all buddies, prepends wellness context specifically for Finance Buddy when stress > 60 or sleep avg < 6.5h; both wrapped in try/except for graceful fallback |
+| `change_log.md` | Added this session's log entry |
+| `diary.md` | Added diary entry for this session |
+
+### Key Functions in `context_engine.py`
+| Function | Purpose |
+|----------|---------|
+| `assemble_context(db, user_id)` | Main entry point — fetches 7 days of mood, expenses, sleep, goals, tasks concurrently via asyncio.gather, computes all scores |
+| `detect_correlations(db, user_id)` | Enhanced correlation detection — fetches current AND prior 7-day period, compares food spending between periods (+30% threshold), checks 3 consecutive days poor sleep |
+| `get_wellness_context_for_finance(db, user_id)` | Returns wellness context string when stress > 60 or sleep avg < 6.5h for Finance Buddy prompt injection |
+| `_safe_fetch(db, user_id, collection, ...)` | Graceful degradation wrapper — catches DB exceptions, returns None + error message |
+| `_has_consecutive_poor_sleep(sleeps, threshold, days)` | Checks for N consecutive days with sleep below threshold (groups by date, validates date continuity) |
+| `_compute_financial_health_score(expenses, budget)` | Budget adherence scoring (spend ratio → 0-100 scale) |
+| `_compute_wellness_composite_score(moods, sleeps)` | Composite of mood avg, stress inversion, energy, sleep quality, sleep hours |
+| `_compute_habit_consistency(moods, sleeps, days)` | Percentage of days with at least one check-in |
+| `_identify_active_stressors(...)` | Identifies up to 10 stress factors from all domains |
+| `_count_unique_data_days(moods, sleeps, expenses)` | Counts unique calendar days with data (for sufficiency guard) |
+
+### Correlation Detection Logic
+| Pattern | Trigger Condition | Comparison Method |
+|---------|-------------------|-------------------|
+| Emotional Eating | stress > 70 AND food spending +30% vs prior 7 days | Fetches days 1-7 and days 8-14, compares food category totals |
+| Burnout Risk | sleep < 6h for 3 consecutive days AND task completion < 50% | Groups sleep by date, validates day-to-day continuity, counts consecutive poor days |
+| Financial Stress | budget overspend (spent > allocated) AND stress > 60 | Checks budget_categories collection against mood stress average |
+
+### Summary
+Implemented the complete Cross-Domain AI Context Engine (Task 4, subtasks 4.1 and 4.2). This is the intelligence backbone of PocketBuddy — enabling AI buddies to reference cross-domain data in conversations, surface correlation-based insight cards in the Daily Hub, and provide contextual wellness information in financial advice. The context engine accepts a Motor DB instance as parameter (testable), uses asyncio.gather for concurrent domain fetching, and degrades gracefully when individual domains fail. All 95 project tests pass.
