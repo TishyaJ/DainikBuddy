@@ -1602,6 +1602,10 @@ app.include_router(notification_router)
 from social_router import social_router
 app.include_router(social_router)
 
+# ============ ANALYTICS ROUTER ============
+from analytics_router import analytics_router
+app.include_router(analytics_router)
+
 app.include_router(api_router)
 
 app.add_middleware(
