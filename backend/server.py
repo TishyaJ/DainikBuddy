@@ -1533,6 +1533,10 @@ app.include_router(auth_router)
 from gamification_router import gamification_router
 app.include_router(gamification_router)
 
+# ============ NOTIFICATION ROUTER ============
+from notification_router import notification_router
+app.include_router(notification_router)
+
 app.include_router(api_router)
 
 app.add_middleware(

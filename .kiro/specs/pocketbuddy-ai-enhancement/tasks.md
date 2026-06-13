@@ -114,8 +114,8 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - **Property 27: Context Loading from History** — Generate histories, verify exactly 5 messages loaded in new session
     - **Validates: Requirements 9.1, 9.2, 9.5**
 
-- [ ] 6. Smart Notifications and Proactive Nudges
-  - [ ] 6.1 Create backend notification service and router
+- [x] 6. Smart Notifications and Proactive Nudges
+  - [x] 6.1 Create backend notification service and router
     - Create `backend/notification_service.py` with nudge generation logic for budget warnings, wellness nudges, check-in reminders, streak celebrations
     - Create `backend/notification_router.py` with `/api/notifications`, `/api/notifications/{id}/dismiss`, `/api/notifications/preferences`, `/api/notifications/subscribe`
     - Budget warning: trigger when category reaches 80% of allocated amount
@@ -133,7 +133,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - **Property 9: Dismissal-Based Frequency Adaptation** — Generate dismissal sequences, verify suppression rules
     - **Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5, 3.7**
 
-  - [ ] 6.3 Create frontend notification components
+  - [x] 6.3 Create frontend notification components
     - Create `frontend/src/components/NotificationBell.jsx` with unread badge count in Header
     - Create `frontend/src/pages/NotificationCenter.jsx` as sheet/drawer showing recent 10 notifications with timestamp, category icon, read/unread status
     - Create `frontend/src/pages/NotificationPreferences.jsx` with toggle switches per category

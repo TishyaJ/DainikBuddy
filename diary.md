@@ -307,3 +307,88 @@ After:
 - **Parent task 5 auto-completed** (both required children done, 5.3 was optional)
 - **Newly ready tasks**: 9.1 (Categorization service) — other wave 4 tasks may also be unblocked
 - **All tests passing**
+
+
+---
+
+## June 13, 2026 — Task 6: Smart Notifications and Proactive Nudges
+
+### What happened
+Executed Task 6 (Smart Notifications and Proactive Nudges) — subtasks 6.1 (backend) and 6.3 (frontend). Task 6.2 (property tests) was optional and skipped. This gives PocketBuddy a complete notification system: from backend nudge generation logic through to the frontend UI for viewing, dismissing, and configuring notifications.
+
+### Execution Strategy
+- **6.1 first** (notification service + router) — the backend must exist before the frontend can consume it
+- **6.3 second** (frontend components) — NotificationContext polls the backend, so the endpoints must be live
+- Both completed successfully with all tests passing
+
+### Key Architecture Decisions
+
+**Notification evaluation is on-demand, not scheduled:**
+Rather than running a background cron job (which would require a separate process/scheduler), the notification service exposes a `POST /api/notifications/evaluate` endpoint. The frontend can call this on app open or the evaluate logic can be triggered as a side-effect of other actions (expense creation, mood check-in, etc.). This keeps the single-process FastAPI deployment simple while still enabling proactive nudges.
+
+**Rate limiting via DB query, not in-memory counter:**
+The high-stress rate limit (max 3 nudges/day when stress > 70 for 2 consecutive days) is checked by counting today's notifications in MongoDB rather than using an in-memory counter. This is safer — survives server restarts and works correctly if multiple instances were ever deployed.
+
+**Dismissal adaptation uses a two-tier approach:**
+- 1-2 dismissals in 7 days → 50% random skip (probabilistic frequency reduction)
+- 3+ dismissals in 7 days → full suppression for 14 days via `suppressed_types` array in preferences
+
+The probabilistic approach for tier 1 is intentional — it means sometimes the nudge still gets through, which prevents the user from completely losing a category they might still benefit from after a temporary annoyance period.
+
+**Push subscription stored on user document:**
+Rather than a separate `push_subscriptions` collection, the subscription object is stored directly on the `users` collection document. Since each user has at most one active browser subscription, this avoids an extra collection and join.
+
+**Frontend polling at 60-second interval:**
+The NotificationContext polls `GET /api/notifications` every 60 seconds. This is a pragmatic choice:
+- No WebSocket complexity needed
+- 60s is responsive enough for nudges (they're not time-critical to the second)
+- Stops polling automatically when the component unmounts (clearInterval on cleanup)
+
+**Push permission requested once per session:**
+Per Req 3.9, the app must not prompt for push notification permission more than once per session. This is enforced via `sessionStorage.setItem("pb_notification_permission_asked", "true")` — cleared automatically when the tab/browser closes.
+
+### API Verification Results (all passing via curl)
+
+| Endpoint | Method | Result |
+|----------|--------|--------|
+| `GET /api/notifications` | authenticated | ✓ Returns `{notifications: [], count: 0}` for new user |
+| `GET /api/notifications/preferences` | authenticated | ✓ Returns default preferences (all categories enabled) |
+| `PATCH /api/notifications/preferences` | authenticated | ✓ Toggles `budget_alerts` to false, persists in DB |
+| `POST /api/notifications/evaluate` | authenticated | ✓ Generates check-in reminder (user hasn't logged mood today) |
+| `POST /api/notifications/{id}/dismiss` | authenticated | ✓ Marks notification as dismissed, returns updated object |
+| `POST /api/notifications/subscribe` | authenticated | ✓ Stores push subscription on user document |
+| `GET /api/notifications` | no token | ✓ Returns 401 "Authentication required" |
+
+### Frontend Components Created
+
+**NotificationContext.jsx:**
+- Provides: `notifications`, `unreadCount`, `loading`, `error`, `refresh()`, `markDismissed(id)`, `preferences`, `updatePreferences()`
+- Polls every 60s, requests push permission once per session
+- Graceful error handling — never blocks the UI
+
+**NotificationBell.jsx:**
+- Replaces the old static Bell button in Header
+- Shows red badge with unread count (caps at "99+")
+- Navigates to `/notifications` on click
+- Accepts `gradient` prop for header style compatibility
+
+**NotificationCenter.jsx:**
+- Shows recent 10 notifications sorted by date
+- Category icons: Bell (reminder), DollarSign (budget), Heart (wellness), Flame (streak)
+- Relative timestamps ("2 min ago", "3h ago", "2d ago")
+- Read/unread visual distinction (purple left border + bold for unread)
+- Dismiss button per notification
+- Empty state with BellOff icon and "No notifications yet" message
+- Settings gear button navigates to preferences
+
+**NotificationPreferences.jsx:**
+- 4 toggle switches: Budget Alerts, Wellness Reminders, Streak Celebrations, Social Updates
+- Each with icon, label, and description
+- PATCHes backend on toggle change (optimistic UI)
+- Back button navigation
+
+### Current State
+- **Tasks completed**: 1.1 ✓, 1.2 ✓, 1.3 ✓, 1.4 ✓, 2.1 ✓, 2.3 ✓, 3 ✓, 4.1 ✓, 4.2 ✓, 5.1 ✓, 5.2 ✓, 6.1 ✓, 6.3 ✓
+- **Parent task 6 auto-completed** (both required children done, 6.2 was optional)
+- **Newly ready tasks**: 9.1 (Categorization service), 8.1 (Social module), 10.1 (Analytics)
+- **All tests passing**

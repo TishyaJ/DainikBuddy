@@ -185,3 +185,62 @@ Implemented the complete Cross-Domain AI Context Engine (Task 4, subtasks 4.1 an
 
 ### Summary
 Implemented the complete AI Buddy Personality and Conversation Memory system (Task 5, subtasks 5.1 and 5.2). Each AI buddy now has enforced personality rules via explicit CRITICAL PERSONALITY RULES in system prompts, conversation history is persisted and loaded for context continuity across sessions, older messages are auto-summarized when exceeding 50 per buddy, and "remember when" references trigger intelligent topic search through stored history. All tests passing (58 new tests added this session).
+
+
+---
+
+## Session: June 13, 2026 — Task 6: Smart Notifications and Proactive Nudges
+
+### Files Created
+| File | Description |
+|------|-------------|
+| `backend/notification_service.py` | Notification service — nudge generation logic for budget warnings (80% threshold), wellness nudges (burnout < 40), check-in reminders (no mood by 10 PM), streak celebrations (7/14/30/60/90 days), high-stress rate limiting (max 3/day when stress > 70 for 2 consecutive days), dismissal adaptation (50% reduction for 7 days, suppress 14 days after 3 dismissals), notification preferences (enable/disable per category), push subscription storage |
+| `backend/notification_router.py` | Notification router (`/api/notifications/*`) — GET list (limit 20), POST dismiss with frequency adaptation, GET/PATCH preferences, POST push subscribe, POST evaluate (trigger nudge checks) |
+| `frontend/src/context/NotificationContext.jsx` | NotificationProvider — notifications list, unreadCount, 60s polling, push notification subscription (one-time permission request per session via sessionStorage), preferences management, dismiss functionality, `useNotifications()` hook |
+| `frontend/src/components/NotificationBell.jsx` | Bell button with red unread badge count (caps at 99+), navigates to /notifications, accepts gradient prop for Header compatibility |
+| `frontend/src/pages/NotificationCenter.jsx` | Notification center page — shows recent 10 notifications, category icons (Bell/DollarSign/Heart/Flame), relative timestamps, read/unread indicators, dismiss buttons, empty state ("No notifications yet"), settings link to preferences |
+| `frontend/src/pages/NotificationPreferences.jsx` | Notification preferences page — toggle switches for Budget Alerts, Wellness Reminders, Streak Celebrations, Social Updates, PATCHes backend on toggle change, back navigation |
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `backend/server.py` | Added notification router import & registration (`from notification_router import notification_router; app.include_router(notification_router)`) before `app.include_router(api_router)` |
+| `frontend/src/App.js` | Added `NotificationProvider` wrapping the app (inside GamificationProvider), imported NotificationCenter and NotificationPreferences pages, added `/notifications` and `/notifications/preferences` routes in Shell component |
+| `frontend/src/components/Header.jsx` | Replaced static Bell button with `NotificationBell` component import, removed Bell icon import from lucide-react (now in NotificationBell), bell now shows unread count and navigates to notifications |
+| `change_log.md` | Added this session's log entry |
+| `diary.md` | Added diary entry for this session |
+
+### Key Functions in `notification_service.py`
+| Function | Purpose |
+|----------|---------|
+| `get_preferences(user_id)` | Get/create default notification preferences |
+| `update_preferences(user_id, updates)` | Update category enable/disable settings |
+| `generate_budget_warning(user_id, category_name, allocated, spent)` | Creates budget warning when spent ≥ 80% of allocated |
+| `generate_wellness_nudge(user_id, burnout_score)` | Creates wellness nudge when burnout < 40 with random recovery action |
+| `generate_checkin_reminder(user_id)` | Creates daily mood check-in reminder |
+| `generate_streak_celebration(user_id, streak_count, xp_earned)` | Creates celebration at milestone streaks |
+| `check_budget_warnings(user_id)` | Iterates all budget categories, generates warnings as needed |
+| `check_wellness_nudge(user_id)` | Computes burnout from latest mood, generates nudge if low |
+| `check_checkin_reminder(user_id)` | Checks if mood logged today, generates reminder if not |
+| `dismiss_notification(user_id, notification_id)` | Dismisses + applies frequency adaptation (3+ → suppress 14d) |
+| `evaluate_nudges(user_id)` | Evaluates all nudge conditions, returns generated notifications |
+| `save_push_subscription(user_id, subscription)` | Stores push subscription on user document |
+| `_check_high_stress_rate_limit(user_id)` | Returns True if user at max 3 nudges/day under high stress |
+| `_should_reduce_frequency(user_id, nudge_type)` | 50% random skip after 1-2 dismissals in 7 days |
+| `_is_type_suppressed(user_id, nudge_type)` | Checks if nudge type is suppressed (14-day block) |
+| `_is_category_enabled(user_id, category)` | Checks user preferences for category on/off |
+| `_create_notification(user_id, ...)` | Core notification creation with all guard checks |
+
+### API Verification (curl tests — all passing)
+| # | Test | Result |
+|---|------|--------|
+| 1 | `GET /api/notifications` (authenticated) | ✓ `{notifications: [], count: 0}` |
+| 2 | `GET /api/notifications/preferences` (authenticated) | ✓ Default prefs returned (all true) |
+| 3 | `PATCH /api/notifications/preferences` (toggle budget_alerts off) | ✓ `budget_alerts: false` persisted |
+| 4 | `POST /api/notifications/evaluate` (trigger nudges) | ✓ Generated 1 check-in reminder |
+| 5 | `POST /api/notifications/{id}/dismiss` | ✓ `dismissed: true` in response |
+| 6 | `POST /api/notifications/subscribe` (push sub) | ✓ `{status: "subscribed"}` |
+| 7 | `GET /api/notifications` (no auth token) | ✓ 401 "Authentication required" |
+
+### Summary
+Implemented the complete Smart Notifications and Proactive Nudges system (Task 6, subtasks 6.1 and 6.3). Backend provides nudge generation with budget warnings, wellness nudges, check-in reminders, and streak celebrations — all gated by user preferences, high-stress rate limiting, and dismissal-based frequency adaptation. Frontend provides a full notification UI: bell with badge in header, notification center with category icons and relative timestamps, preferences page with toggles, and a context provider with 60-second polling and push notification subscription. All 7 curl verification tests passing against live server.
