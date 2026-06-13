@@ -215,3 +215,95 @@ After this task:
 - **Parent task 4 auto-completed** (both children done)
 - **Newly ready tasks**: 5.1 (Conversation memory), 9.1 (Categorization service) — unlocked by 4.1 completion per wave 3 in dependency graph
 - **All tests passing**: 95/95
+
+---
+
+## June 13, 2026 — Task 5: AI Buddy Personality and Conversation Memory
+
+### What happened
+Executed Task 5 (AI Buddy Personality and Conversation Memory) — subtasks 5.1 and 5.2. This gives PocketBuddy's AI buddies persistent memory across sessions and enforces distinct personalities that make each buddy feel different and consistent.
+
+### Execution Strategy
+- **5.1 first** (conversation memory service) — creates the standalone module with all memory functions
+- **5.2 second** (personality enhancement + integration) — depends on 5.1's `get_full_context_for_chat()` being available for import
+- Sequential execution: 5.2 imports from the module created in 5.1
+- Task 5.3 (property tests) was optional and skipped for faster progress
+
+### Key Architecture Decisions
+
+**Why the memory service is separate from server.py:**
+`conversation_memory.py` is a pure service module that accepts `db` as a parameter. This follows the same pattern as `context_engine.py`:
+- Testable with mocked Motor instances (no real DB needed for unit tests)
+- No circular imports — server.py imports it, not the other way around
+- Reusable if we ever add background workers or CLI tools
+
+**Why extractive summarization instead of LLM-based:**
+The `_generate_summary()` function uses a simple extractive approach (representative user messages + assistant first-sentences) rather than calling Claude/GPT. Reasons:
+- Summarization happens on every 51st message — too expensive for an LLM call each time
+- The summary is only used as context injection, not shown to the user — perfection isn't needed
+- If we wanted LLM summarization later, the function signature stays the same — just swap the implementation
+
+**Why 50/20/5 thresholds:**
+- **50 max messages retained**: Enough history for meaningful context without unbounded DB growth
+- **20 recent kept as-is**: Recent enough for "remember when" searches to usually find what the user means
+- **5 messages loaded per session**: Gives the LLM enough conversation flow context without overwhelming the context window (5 messages ≈ 200-500 tokens, well within budget)
+
+**Personality enforcement via CRITICAL PERSONALITY RULES:**
+Rather than just describing the buddy's personality in general terms (which LLMs often ignore), the system prompts now have an explicit "CRITICAL PERSONALITY RULES" section with MUST statements. This is a prompt engineering best practice — explicit constraints are followed more reliably than soft suggestions. Each buddy has concrete, verifiable requirements:
+- Finance: must include a ₹ number
+- Wellness: must start with validation before advice
+- Discover: must include a concrete recommendation with price/location
+- Helper: must reference 2+ domains
+
+**"Remember when" as keyword search, not semantic search:**
+The topic search uses simple keyword matching (extract keywords from user's message → score messages by keyword overlap) rather than embedding-based semantic search. This was pragmatic:
+- No embedding model needed (no additional API costs)
+- Works offline (no external service dependency)
+- Fast (simple string operations on 50 messages)
+- Good enough for most "remember when I mentioned rent" type queries
+- Could be upgraded to semantic search later without changing the interface
+
+### How the conversation flow works now
+
+1. User sends message to `/api/chat/{buddy}`
+2. Server loads profile (name, pattern) → personalizes the system prompt
+3. Server calls `get_full_context_for_chat(db, user_id, buddy)`:
+   - Fetches last 5 messages (chronological) → injected as conversation history context
+   - Fetches any existing summary → injected as "[Prior conversation summary: ...]"
+4. If user's message contains "remember when" / "last time" / etc.:
+   - Extract keywords from the reference
+   - Search last 50 stored messages for keyword matches
+   - Inject top 3 matching messages as "[Relevant prior conversation...]" context
+5. Server calls `assemble_context()` → injects 7-day cross-domain data summary
+6. Server stores user message in `db.chat_messages`
+7. LLM generates response with full system prompt (personality + pattern + memory + cross-domain context)
+8. Server stores assistant response in `db.chat_messages`
+9. If total messages for this buddy > 50 → auto-triggers `trim_and_summarize()`:
+   - Keeps 20 most recent messages
+   - Summarizes older messages into ≤500 char note
+   - Stores summary in `conversation_summaries` collection
+   - Deletes the summarized messages from `chat_messages`
+
+### Impact on User Experience
+Before:
+- Every chat session started from scratch — no memory of prior conversations
+- All buddies had nearly identical personalities (generic helpful AI)
+- "Remember when I told you about X" would get a blank response
+
+After:
+- Buddies remember prior conversations (last 5 messages loaded as context)
+- Long-term memory via summaries (even months-old topics are captured in the summary)
+- Each buddy has a distinct, verifiable personality (Finance talks numbers, Wellness validates first, etc.)
+- "Remember when" actually works — searches history and includes relevant prior messages
+- If DB fails, everything still works — just without memory (graceful degradation)
+
+### Test Coverage
+- 31 tests in `test_conversation_memory.py` (store, retrieve, trim, summarize, fallbacks)
+- 27 tests in `test_chat_personality.py` (trigger detection, keyword extraction, prompt validation)
+- All project tests passing
+
+### Current State
+- **Tasks completed**: 1.1 ✓, 1.2 ✓, 1.3 ✓, 1.4 ✓, 2.1 ✓, 2.3 ✓, 3 ✓, 4.1 ✓, 4.2 ✓, 5.1 ✓, 5.2 ✓
+- **Parent task 5 auto-completed** (both required children done, 5.3 was optional)
+- **Newly ready tasks**: 9.1 (Categorization service) — other wave 4 tasks may also be unblocked
+- **All tests passing**

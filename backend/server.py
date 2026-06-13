@@ -1229,12 +1229,158 @@ async def weekly_insights(user_id: str = Depends(get_current_user)):
 
 
 # ============ CHATBOT (SSE streaming) ============
+
+# Distinct system prompts per buddy with explicit personality requirements (Req 9.3)
 BUDDY_MODELS = {
-    "finance": ("openai", "gpt-5.2", "You are Finance Buddy, a wise owl 🦉 helping a student named Alex manage money in Indian rupees (₹). Be concise, friendly, use bullet points, give concrete numbers. Topics: budgeting, expenses, savings goals, splitting bills, subscriptions, cash flow. End with one actionable tip."),
-    "wellness": ("anthropic", "claude-sonnet-4-5-20250929", "You are Wellness Buddy, a calm and empathetic cloud ☁️ supporting student Alex's mental wellbeing. Validate feelings first, then offer a small, doable step. Topics: stress, sleep, burnout, focus, mood, breathing. If crisis is detected, gently suggest reaching out to campus counseling. Keep replies warm and under 120 words."),
-    "discover": ("gemini", "gemini-3-flash-preview", "You are Discover Buddy, an upbeat compass 🧭 helping student Alex find cheap food, safe transport, student deals, and campus resources in India. Be punchy, list 2-3 concrete options with prices in ₹ when possible. End with a question to keep the convo going."),
-    "helper": ("openai", "gpt-5.2", "You are Helper Buddy, the orchestrator of Alex's super-app PocketBuddy. You synthesize insights across Finance, Wellness, Discover and Productivity. Always reason briefly across domains (e.g., 'finance + sleep + goals') and end with a single 'Tomorrow do this:' line."),
+    "finance": (
+        "openai",
+        "gpt-5.2",
+        "You are Finance Buddy, a wise owl 🦉 helping a student manage money in Indian rupees (₹). "
+        "Be concise, friendly, use bullet points, give concrete numbers. "
+        "Topics: budgeting, expenses, savings goals, splitting bills, subscriptions, cash flow.\n\n"
+        "CRITICAL PERSONALITY RULES:\n"
+        "- You MUST include at least one specific numeric value (₹ amount, percentage, or budget figure) in EVERY response.\n"
+        "- You MUST reference a budget category, savings target, or spending figure in every reply.\n"
+        "- End with one actionable tip that includes a number (e.g., 'Save ₹200 this week by...').\n"
+        "- If the user asks about non-financial topics, still tie your answer back to a financial angle with a number."
+    ),
+    "wellness": (
+        "anthropic",
+        "claude-sonnet-4-5-20250929",
+        "You are Wellness Buddy, a calm and empathetic cloud ☁️ supporting a student's mental wellbeing. "
+        "Topics: stress, sleep, burnout, focus, mood, breathing. "
+        "If crisis is detected, gently suggest reaching out to campus counseling. Keep replies warm and under 120 words.\n\n"
+        "CRITICAL PERSONALITY RULES:\n"
+        "- You MUST ALWAYS validate and acknowledge the user's feelings BEFORE offering any suggestion or advice.\n"
+        "- Start every response with empathetic, validating language (e.g., 'I hear you...', 'That sounds really tough...', "
+        "'It makes sense that you feel...', 'Your feelings are completely valid...').\n"
+        "- Only AFTER validating, offer a small, doable step or suggestion.\n"
+        "- Never jump straight to advice without first acknowledging the user's emotional state."
+    ),
+    "discover": (
+        "gemini",
+        "gemini-3-flash-preview",
+        "You are Discover Buddy, an upbeat compass 🧭 helping a student find cheap food, safe transport, "
+        "student deals, and campus resources in India. Be punchy and enthusiastic.\n\n"
+        "CRITICAL PERSONALITY RULES:\n"
+        "- You MUST include at least one concrete recommendation with a specific price in ₹ OR a specific location/place name in EVERY response.\n"
+        "- List 2-3 concrete options whenever possible, each with prices in ₹ or specific addresses/landmarks.\n"
+        "- Format recommendations clearly (e.g., '🍕 Dominos student deal: ₹199 for medium pizza at MG Road outlet').\n"
+        "- End with a question to keep the conversation going.\n"
+        "- Never give vague suggestions without at least one price or location."
+    ),
+    "helper": (
+        "openai",
+        "gpt-5.2",
+        "You are Helper Buddy, the orchestrator of the super-app PocketBuddy. "
+        "You synthesize insights across Finance, Wellness, Discover and Productivity.\n\n"
+        "CRITICAL PERSONALITY RULES:\n"
+        "- You MUST reference at least TWO different life domains (finance, wellness, productivity, discovery) in EVERY response.\n"
+        "- Always reason briefly across domains (e.g., 'Looking at your finances + sleep patterns...', "
+        "'Connecting your spending habits with your wellness goals...').\n"
+        "- Show how different areas of the user's life connect and affect each other.\n"
+        "- End with a single 'Tomorrow do this:' line that incorporates multiple domains.\n"
+        "- Never respond about only one domain in isolation."
+    ),
 }
+
+
+# ---- Conversation memory topic search for "remember when" references (Req 9.4) ----
+MEMORY_TRIGGER_PHRASES = [
+    "remember when",
+    "last time",
+    "we talked about",
+    "you said",
+    "i mentioned",
+    "you told me",
+    "we discussed",
+    "earlier you",
+    "previously",
+    "before you said",
+    "you recommended",
+    "you suggested",
+]
+
+
+def _detect_memory_reference(message: str) -> bool:
+    """Check if the user's message references a previous conversation."""
+    msg_lower = message.lower()
+    return any(phrase in msg_lower for phrase in MEMORY_TRIGGER_PHRASES)
+
+
+def _extract_search_keywords(message: str) -> list:
+    """Extract meaningful keywords from the user's message for topic search."""
+    # Remove common trigger phrases to get the actual topic
+    msg_lower = message.lower()
+    for phrase in MEMORY_TRIGGER_PHRASES:
+        msg_lower = msg_lower.replace(phrase, "")
+
+    # Remove common stop words and short words
+    stop_words = {
+        "i", "me", "my", "we", "you", "the", "a", "an", "is", "was", "are",
+        "were", "been", "be", "have", "has", "had", "do", "does", "did",
+        "will", "would", "could", "should", "may", "might", "shall", "can",
+        "about", "that", "this", "what", "when", "where", "how", "who",
+        "which", "there", "here", "just", "also", "very", "really", "so",
+        "but", "and", "or", "if", "then", "than", "too", "not", "no", "yes",
+        "it", "its", "to", "of", "in", "on", "at", "for", "with", "from",
+    }
+    words = [w.strip("?.!,;:'\"") for w in msg_lower.split()]
+    keywords = [w for w in words if w and len(w) > 2 and w not in stop_words]
+    return keywords
+
+
+async def _search_conversation_history(db, user_id: str, buddy: str, message: str) -> str:
+    """
+    Search the last 50 messages for content matching the user's reference.
+    Returns formatted context string with matching messages, or empty string.
+    """
+    try:
+        keywords = _extract_search_keywords(message)
+        if not keywords:
+            return ""
+
+        # Fetch the last 50 messages for this user/buddy
+        cursor = db.chat_messages.find(
+            {"user_id": user_id, "buddy": buddy},
+            {"_id": 0, "role": 1, "content": 1, "created_at": 1},
+        ).sort("created_at", -1).limit(50)
+        messages = await cursor.to_list(50)
+
+        if not messages:
+            return ""
+
+        # Score each message by keyword match count
+        matching_messages = []
+        for msg in messages:
+            content_lower = msg.get("content", "").lower()
+            match_count = sum(1 for kw in keywords if kw in content_lower)
+            if match_count > 0:
+                matching_messages.append((match_count, msg))
+
+        if not matching_messages:
+            return ""
+
+        # Sort by relevance (most matches first) and take top 3
+        matching_messages.sort(key=lambda x: x[0], reverse=True)
+        top_matches = matching_messages[:3]
+
+        # Format as context block
+        context_lines = []
+        for _, msg in top_matches:
+            role_label = "User" if msg["role"] == "user" else "Assistant"
+            content_preview = msg["content"][:200]  # Limit length
+            context_lines.append(f"  {role_label}: {content_preview}")
+
+        return (
+            "\n\n[Relevant prior conversation the user is referencing:\n"
+            + "\n".join(context_lines)
+            + "\n]\n"
+            "Use this context to acknowledge and build upon what was previously discussed."
+        )
+    except Exception as e:
+        logger.warning(f"Failed to search conversation history: {e}")
+        return ""
 
 
 class ChatRequest(BaseModel):
@@ -1261,6 +1407,40 @@ async def chat_stream(buddy: str, req: ChatRequest, user_id: str = Depends(get_c
     else:
         pattern_block = f"\n\nThe user is named {user_name}."
     system = base_system + pattern_block
+
+    # ---- Conversation Memory Integration (Req 9.1, 9.2, 9.5, 9.7) ----
+    try:
+        from conversation_memory import get_full_context_for_chat
+
+        memory_context = await get_full_context_for_chat(db, user_id, buddy)
+
+        # If summary exists, include it in system prompt
+        if memory_context.get("summary"):
+            system += f"\n\n[Prior conversation summary: {memory_context['summary']}]"
+
+        # If history exists, include last 5 messages as context
+        if memory_context.get("history"):
+            history_lines = []
+            for msg in memory_context["history"]:
+                role_label = "User" if msg["role"] == "user" else "You"
+                history_lines.append(f"  {role_label}: {msg['content'][:300]}")
+            system += (
+                "\n\n[Recent conversation history (continue naturally from here):\n"
+                + "\n".join(history_lines)
+                + "\n]"
+            )
+    except Exception as e:
+        logger.warning(f"Failed to load conversation memory for chat: {e}")
+        # Graceful fallback: proceed without memory context (Req 9.6)
+
+    # ---- "Remember when" topic search (Req 9.4) ----
+    try:
+        if _detect_memory_reference(req.message):
+            memory_ref_context = await _search_conversation_history(db, user_id, buddy, req.message)
+            if memory_ref_context:
+                system += memory_ref_context
+    except Exception as e:
+        logger.warning(f"Failed topic search for memory reference: {e}")
 
     # Include cross-domain context for richer responses
     try:

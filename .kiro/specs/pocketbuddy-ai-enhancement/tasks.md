@@ -90,8 +90,8 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - **Property 5: Data Sufficiency Guard** — Generate <3 days data, verify no correlations produced
     - **Validates: Requirements 1.1, 1.2, 1.3, 1.4, 1.5, 1.7**
 
-- [ ] 5. AI Buddy Personality and Conversation Memory
-  - [ ] 5.1 Create backend conversation memory service
+- [x] 5. AI Buddy Personality and Conversation Memory
+  - [x] 5.1 Create backend conversation memory service
     - Create `backend/conversation_memory.py` with message persistence (last 50 per buddy)
     - Implement history loading: include last 5 messages as context when user sends message in new session
     - Implement summarization: when >50 messages, summarize older than most recent 20 into ≤500 char summary
@@ -99,7 +99,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - Graceful fallback: proceed without history if DB retrieval fails
     - _Requirements: 9.1, 9.2, 9.5, 9.6, 9.7_
 
-  - [ ] 5.2 Implement distinct buddy personalities in chat router
+  - [x] 5.2 Implement distinct buddy personalities in chat router
     - Update `backend/chat_router.py` (or existing chat logic in server.py) with distinct system prompts per buddy
     - Finance Buddy: include numeric values/budget references in responses
     - Wellness Buddy: use validating language before suggestions

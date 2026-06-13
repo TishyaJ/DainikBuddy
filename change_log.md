@@ -147,3 +147,41 @@ Removed the redundant `create_index` call from `auth_router.py`'s register endpo
 
 ### Summary
 Implemented the complete Cross-Domain AI Context Engine (Task 4, subtasks 4.1 and 4.2). This is the intelligence backbone of PocketBuddy — enabling AI buddies to reference cross-domain data in conversations, surface correlation-based insight cards in the Daily Hub, and provide contextual wellness information in financial advice. The context engine accepts a Motor DB instance as parameter (testable), uses asyncio.gather for concurrent domain fetching, and degrades gracefully when individual domains fail. All 95 project tests pass.
+
+---
+
+## Session: June 13, 2026 — Task 5: AI Buddy Personality and Conversation Memory
+
+### Files Created
+| File | Description |
+|------|-------------|
+| `backend/conversation_memory.py` | Conversation memory service — message persistence (last 50 per buddy), history loading (last 5 for context), summarization (older than 20 → ≤500 char summary), `conversation_summaries` collection storage, graceful fallback on all DB failures |
+| `backend/tests/test_conversation_memory.py` | 31 unit tests covering store_message, get_conversation_context, get_summary, trim_and_summarize, get_full_context_for_chat, _generate_summary, _select_representative_indices, _truncate_text |
+| `backend/tests/test_chat_personality.py` | 27 unit tests for buddy personality enforcement — memory trigger detection, keyword extraction, system prompt personality validation per buddy |
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `backend/server.py` | **BUDDY_MODELS overhaul**: Replaced short system prompts with enhanced versions containing "CRITICAL PERSONALITY RULES" sections — Finance (must include ₹ amounts/budget refs), Wellness (must validate feelings BEFORE suggestions), Discover (must include concrete recommendation with price/location), Helper (must reference 2+ life domains). **Conversation memory integration**: Added `get_full_context_for_chat` import, loads history + summary before AI generation, injects prior summary and last 5 messages into system prompt. **"Remember when" topic search**: Added `MEMORY_TRIGGER_PHRASES` list (12 phrases), `_detect_memory_reference()`, `_extract_search_keywords()`, `_search_conversation_history()` — searches last 50 messages by keyword match, injects top 3 relevant messages as context |
+| `change_log.md` | Added this session's log entry |
+| `diary.md` | Added diary entry for this session |
+
+### Key Functions in `conversation_memory.py`
+| Function | Purpose |
+|----------|---------|
+| `store_message(db, user_id, buddy, role, content)` | Stores message, auto-triggers trim when count > 50 |
+| `get_conversation_context(db, user_id, buddy)` | Returns last 5 messages in chronological order (Req 9.2) |
+| `get_summary(db, user_id, buddy)` | Retrieves existing conversation summary |
+| `trim_and_summarize(db, user_id, buddy)` | Summarizes messages older than recent 20 into ≤500 chars, deletes summarized messages (Req 9.5) |
+| `get_full_context_for_chat(db, user_id, buddy)` | High-level assembly: returns {history, summary, has_history} |
+| `_generate_summary(messages)` | Extractive summarization — representative user topics + assistant coverage, capped at 500 chars |
+
+### Key Functions added to `server.py`
+| Function | Purpose |
+|----------|---------|
+| `_detect_memory_reference(message)` | Checks if user message contains memory reference phrases (Req 9.4) |
+| `_extract_search_keywords(message)` | Extracts meaningful topic keywords after removing trigger phrases and stop words |
+| `_search_conversation_history(db, user_id, buddy, message)` | Fetches last 50 messages, scores by keyword match, returns top 3 as context block |
+
+### Summary
+Implemented the complete AI Buddy Personality and Conversation Memory system (Task 5, subtasks 5.1 and 5.2). Each AI buddy now has enforced personality rules via explicit CRITICAL PERSONALITY RULES in system prompts, conversation history is persisted and loaded for context continuity across sessions, older messages are auto-summarized when exceeding 50 per buddy, and "remember when" references trigger intelligent topic search through stored history. All tests passing (58 new tests added this session).
