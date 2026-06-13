@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Query, Depends
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -11,6 +11,7 @@ from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone, timedelta
 from emergentintegrations.llm.chat import LlmChat, UserMessage, TextDelta, StreamDone
+from jwt_middleware import get_current_user
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -20,6 +21,7 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 
+# Legacy demo user ID - only used for seeding initial demo data
 DEMO_USER = "alex"
 
 app = FastAPI()
@@ -299,6 +301,8 @@ async def _seed_main():
 
 @app.on_event("startup")
 async def on_startup():
+    # Ensure unique index on users.email for auth
+    await db.users.create_index("email", unique=True, sparse=True)
     await seed_demo_data()
 
 
@@ -308,7 +312,7 @@ async def shutdown_db_client():
 
 
 # ============ HELPERS ============
-async def list_docs(coll, user_id=DEMO_USER, limit=200, sort_field=None):
+async def list_docs(coll, user_id, limit=200, sort_field=None):
     cursor = db[coll].find({"user_id": user_id}, {"_id": 0})
     if sort_field:
         cursor = cursor.sort(sort_field, -1)
@@ -342,47 +346,47 @@ def simple_sentiment(text: str) -> tuple[str, float]:
 
 # ============ MOOD ============
 @api_router.post("/mood")
-async def create_mood(entry: MoodEntry):
-    entry.user_id = DEMO_USER
+async def create_mood(entry: MoodEntry, user_id: str = Depends(get_current_user)):
+    entry.user_id = user_id
     await db.mood_entries.insert_one(entry.model_dump())
     return entry
 
 
 @api_router.get("/mood")
-async def get_moods(limit: int = 30):
-    return await list_docs("mood_entries", limit=limit, sort_field="created_at")
+async def get_moods(limit: int = 30, user_id: str = Depends(get_current_user)):
+    return await list_docs("mood_entries", user_id=user_id, limit=limit, sort_field="created_at")
 
 
 # ============ EXPENSES ============
 @api_router.post("/expenses")
-async def create_expense(e: Expense):
-    e.user_id = DEMO_USER
+async def create_expense(e: Expense, user_id: str = Depends(get_current_user)):
+    e.user_id = user_id
     if not e.category or e.category == "auto":
         e.category = detect_category(f"{e.merchant} {e.note}")
     await db.expenses.insert_one(e.model_dump())
     # update budget spent
     await db.budget_categories.update_one(
-        {"user_id": DEMO_USER, "name": {"$regex": f"^{e.category}$", "$options": "i"}},
+        {"user_id": user_id, "name": {"$regex": f"^{e.category}$", "$options": "i"}},
         {"$inc": {"spent": e.amount}},
     )
     return e
 
 
 @api_router.get("/expenses")
-async def get_expenses(limit: int = 50):
-    return await list_docs("expenses", limit=limit, sort_field="created_at")
+async def get_expenses(limit: int = 50, user_id: str = Depends(get_current_user)):
+    return await list_docs("expenses", user_id=user_id, limit=limit, sort_field="created_at")
 
 
 @api_router.post("/expenses/categorize")
-async def categorize(payload: Dict[str, str]):
+async def categorize(payload: Dict[str, str], user_id: str = Depends(get_current_user)):
     text = payload.get("text", "")
     return {"category": detect_category(text)}
 
 
 # ============ JOURNAL ============
 @api_router.post("/journal")
-async def create_journal(j: JournalEntry):
-    j.user_id = DEMO_USER
+async def create_journal(j: JournalEntry, user_id: str = Depends(get_current_user)):
+    j.user_id = user_id
     sent, score = simple_sentiment(j.text)
     j.sentiment = sent
     j.sentiment_score = score
@@ -391,13 +395,13 @@ async def create_journal(j: JournalEntry):
 
 
 @api_router.get("/journal")
-async def get_journals(limit: int = 30):
-    return await list_docs("journal_entries", limit=limit, sort_field="created_at")
+async def get_journals(limit: int = 30, user_id: str = Depends(get_current_user)):
+    return await list_docs("journal_entries", user_id=user_id, limit=limit, sort_field="created_at")
 
 
 @api_router.get("/journal/weekly")
-async def journal_weekly():
-    entries = await db.journal_entries.find({"user_id": DEMO_USER}, {"_id": 0}).sort("created_at", -1).to_list(50)
+async def journal_weekly(user_id: str = Depends(get_current_user)):
+    entries = await db.journal_entries.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).to_list(50)
     # bucket last 7 days
     today = datetime.now(timezone.utc).date()
     out = []
@@ -411,28 +415,28 @@ async def journal_weekly():
 
 # ============ GOALS ============
 @api_router.get("/goals")
-async def get_goals():
-    return await list_docs("goals")
+async def get_goals(user_id: str = Depends(get_current_user)):
+    return await list_docs("goals", user_id=user_id)
 
 
 @api_router.post("/goals")
-async def create_goal(g: Goal):
-    g.user_id = DEMO_USER
+async def create_goal(g: Goal, user_id: str = Depends(get_current_user)):
+    g.user_id = user_id
     await db.goals.insert_one(g.model_dump())
     return g
 
 
 @api_router.patch("/goals/{goal_id}")
-async def update_goal(goal_id: str, payload: Dict[str, Any]):
-    await db.goals.update_one({"id": goal_id, "user_id": DEMO_USER}, {"$set": payload})
+async def update_goal(goal_id: str, payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
+    await db.goals.update_one({"id": goal_id, "user_id": user_id}, {"$set": payload})
     doc = await db.goals.find_one({"id": goal_id}, {"_id": 0})
     return doc
 
 
 # ============ BUDGET ============
 @api_router.get("/budget")
-async def get_budget():
-    cats = await list_docs("budget_categories")
+async def get_budget(user_id: str = Depends(get_current_user)):
+    cats = await list_docs("budget_categories", user_id=user_id)
     total_alloc = sum(c["allocated"] for c in cats)
     total_spent = sum(c["spent"] for c in cats)
     return {
@@ -445,54 +449,54 @@ async def get_budget():
 
 
 @api_router.patch("/budget/{cat_id}")
-async def update_budget(cat_id: str, payload: Dict[str, Any]):
+async def update_budget(cat_id: str, payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
     payload.pop("id", None); payload.pop("user_id", None)
-    await db.budget_categories.update_one({"id": cat_id, "user_id": DEMO_USER}, {"$set": payload})
+    await db.budget_categories.update_one({"id": cat_id, "user_id": user_id}, {"$set": payload})
     return await db.budget_categories.find_one({"id": cat_id}, {"_id": 0})
 
 
 @api_router.post("/budget")
-async def create_budget_category(payload: Dict[str, Any]):
+async def create_budget_category(payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
     name = (payload.get("name") or "").strip()
     if not name:
         raise HTTPException(400, "Name required")
     allocated = float(payload.get("allocated") or 0)
-    cat = BudgetCategory(user_id=DEMO_USER, name=name, allocated=allocated, spent=0)
+    cat = BudgetCategory(user_id=user_id, name=name, allocated=allocated, spent=0)
     await db.budget_categories.insert_one(cat.model_dump())
     return cat
 
 
 @api_router.delete("/budget/{cat_id}")
-async def delete_budget_category(cat_id: str):
-    res = await db.budget_categories.delete_one({"id": cat_id, "user_id": DEMO_USER})
+async def delete_budget_category(cat_id: str, user_id: str = Depends(get_current_user)):
+    res = await db.budget_categories.delete_one({"id": cat_id, "user_id": user_id})
     return {"deleted": res.deleted_count}
 
 
 # ============ SUBSCRIPTIONS / SAVINGS / SPLITS ============
 @api_router.get("/subscriptions")
-async def get_subs():
-    subs = await list_docs("subscriptions")
+async def get_subs(user_id: str = Depends(get_current_user)):
+    subs = await list_docs("subscriptions", user_id=user_id)
     total = sum(s["amount"] for s in subs)
     return {"items": subs, "monthly_total": total}
 
 
 @api_router.get("/savings")
-async def get_savings():
-    return await list_docs("savings_goals")
+async def get_savings(user_id: str = Depends(get_current_user)):
+    return await list_docs("savings_goals", user_id=user_id)
 
 
 @api_router.get("/splits")
-async def get_splits():
-    items = await list_docs("split_bills")
+async def get_splits(user_id: str = Depends(get_current_user)):
+    items = await list_docs("split_bills", user_id=user_id)
     net = sum(s["owes_you"] for s in items)
     return {"items": items, "net_balance": net}
 
 
 # ============ WELLNESS ============
 @api_router.get("/wellness/scores")
-async def wellness_scores():
-    moods = await db.mood_entries.find({"user_id": DEMO_USER}, {"_id": 0}).sort("created_at", -1).to_list(7)
-    sleeps = await db.sleep_entries.find({"user_id": DEMO_USER}, {"_id": 0}).sort("date", -1).to_list(7)
+async def wellness_scores(user_id: str = Depends(get_current_user)):
+    moods = await db.mood_entries.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).to_list(7)
+    sleeps = await db.sleep_entries.find({"user_id": user_id}, {"_id": 0}).sort("date", -1).to_list(7)
     avg_sleep = sum(s["hours"] for s in sleeps) / max(len(sleeps), 1) if sleeps else 7
     avg_stress = sum(m.get("stress", 50) for m in moods) / max(len(moods), 1) if moods else 50
     sleep_score = round(min(100, (avg_sleep / 8) * 100))
@@ -503,13 +507,13 @@ async def wellness_scores():
         "stress_score": stress_score,
         "burnout_score": burnout_score,
         "avg_sleep_hours": round(avg_sleep, 1),
-        "streak_days": await compute_streak(),
+        "streak_days": await compute_streak(user_id),
     }
 
 
 @api_router.get("/sleep/weekly")
-async def sleep_weekly():
-    sleeps = await db.sleep_entries.find({"user_id": DEMO_USER}, {"_id": 0}).sort("date", 1).to_list(7)
+async def sleep_weekly(user_id: str = Depends(get_current_user)):
+    sleeps = await db.sleep_entries.find({"user_id": user_id}, {"_id": 0}).sort("date", 1).to_list(7)
     out = []
     for s in sleeps:
         d = datetime.fromisoformat(s["date"]).strftime("%a")
@@ -518,32 +522,32 @@ async def sleep_weekly():
 
 
 @api_router.post("/sleep")
-async def add_sleep(s: SleepEntry):
-    s.user_id = DEMO_USER
+async def add_sleep(s: SleepEntry, user_id: str = Depends(get_current_user)):
+    s.user_id = user_id
     await db.sleep_entries.insert_one(s.model_dump())
     return s
 
 
 @api_router.get("/mood/weekly")
-async def mood_weekly():
-    moods = await db.mood_entries.find({"user_id": DEMO_USER}, {"_id": 0}).sort("created_at", 1).to_list(7)
+async def mood_weekly(user_id: str = Depends(get_current_user)):
+    moods = await db.mood_entries.find({"user_id": user_id}, {"_id": 0}).sort("created_at", 1).to_list(7)
     return [{"day": datetime.fromisoformat(m["created_at"]).strftime("%a"), "mood": m["mood"],
              "stress": m.get("stress", 50)} for m in moods]
 
 
 # ============ EXERCISES (physical wellbeing) ============
 @api_router.get("/exercises")
-async def get_exercises():
-    return await db.exercises.find({"user_id": DEMO_USER}, {"_id": 0}).sort("created_at", -1).to_list(100)
+async def get_exercises(user_id: str = Depends(get_current_user)):
+    return await db.exercises.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
 
 
 @api_router.post("/exercises")
-async def create_exercise(payload: Dict[str, Any]):
+async def create_exercise(payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
     name = (payload.get("name") or "").strip()
     if not name:
         raise HTTPException(400, "Name required")
     e = Exercise(
-        user_id=DEMO_USER, name=name,
+        user_id=user_id, name=name,
         body_part=payload.get("body_part") or "full",
         target_minutes=int(payload.get("target_minutes") or 30),
     )
@@ -552,37 +556,37 @@ async def create_exercise(payload: Dict[str, Any]):
 
 
 @api_router.patch("/exercises/{eid}")
-async def update_exercise(eid: str, payload: Dict[str, Any]):
+async def update_exercise(eid: str, payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
     payload.pop("id", None); payload.pop("user_id", None)
     if "progress" in payload:
         payload["progress"] = max(0, min(100, int(payload["progress"])))
         payload["status"] = "done" if payload["progress"] >= 100 else "active"
-    await db.exercises.update_one({"id": eid, "user_id": DEMO_USER}, {"$set": payload})
+    await db.exercises.update_one({"id": eid, "user_id": user_id}, {"$set": payload})
     return await db.exercises.find_one({"id": eid}, {"_id": 0})
 
 
 @api_router.delete("/exercises/{eid}")
-async def delete_exercise(eid: str):
-    await db.exercises.delete_one({"id": eid, "user_id": DEMO_USER})
-    await db.exercise_sessions.delete_many({"exercise_id": eid, "user_id": DEMO_USER})
+async def delete_exercise(eid: str, user_id: str = Depends(get_current_user)):
+    await db.exercises.delete_one({"id": eid, "user_id": user_id})
+    await db.exercise_sessions.delete_many({"exercise_id": eid, "user_id": user_id})
     return {"deleted": 1}
 
 
 @api_router.post("/exercises/{eid}/start")
-async def start_exercise_session(eid: str):
+async def start_exercise_session(eid: str, user_id: str = Depends(get_current_user)):
     await db.exercise_sessions.update_many(
-        {"exercise_id": eid, "user_id": DEMO_USER, "ended_at": None},
+        {"exercise_id": eid, "user_id": user_id, "ended_at": None},
         {"$set": {"ended_at": now_iso()}},
     )
-    s = ExerciseSession(exercise_id=eid)
+    s = ExerciseSession(exercise_id=eid, user_id=user_id)
     await db.exercise_sessions.insert_one(s.model_dump())
     return s
 
 
 @api_router.post("/exercises/{eid}/stop")
-async def stop_exercise_session(eid: str, payload: Dict[str, Any]):
+async def stop_exercise_session(eid: str, payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
     open_s = await db.exercise_sessions.find_one(
-        {"exercise_id": eid, "user_id": DEMO_USER, "ended_at": None},
+        {"exercise_id": eid, "user_id": user_id, "ended_at": None},
         {"_id": 0}, sort=[("started_at", -1)],
     )
     if not open_s:
@@ -599,9 +603,9 @@ async def stop_exercise_session(eid: str, payload: Dict[str, Any]):
 
 
 @api_router.get("/exercises/{eid}/sessions")
-async def get_exercise_sessions(eid: str):
+async def get_exercise_sessions(eid: str, user_id: str = Depends(get_current_user)):
     sessions = await db.exercise_sessions.find(
-        {"exercise_id": eid, "user_id": DEMO_USER}, {"_id": 0}
+        {"exercise_id": eid, "user_id": user_id}, {"_id": 0}
     ).sort("started_at", -1).to_list(100)
     total = sum(s.get("elapsed_seconds", 0) for s in sessions)
     active = next((s for s in sessions if not s.get("ended_at")), None)
@@ -609,22 +613,22 @@ async def get_exercise_sessions(eid: str):
 
 
 @api_router.get("/exercises/summary")
-async def exercises_summary():
+async def exercises_summary(user_id: str = Depends(get_current_user)):
     """Today's snapshot: total active minutes, sedentary warning, upper/lower split (last 7d)."""
     today = datetime.now(timezone.utc)
     today_start = today.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
     sessions = await db.exercise_sessions.find(
-        {"user_id": DEMO_USER, "started_at": {"$gte": today_start}, "ended_at": {"$ne": None}}, {"_id": 0},
+        {"user_id": user_id, "started_at": {"$gte": today_start}, "ended_at": {"$ne": None}}, {"_id": 0},
     ).to_list(200)
     today_minutes = sum(s.get("elapsed_seconds", 0) for s in sessions) // 60
 
     # last 7 days upper vs lower vs full
     since = (today - timedelta(days=7)).isoformat()
     last7 = await db.exercise_sessions.find(
-        {"user_id": DEMO_USER, "started_at": {"$gte": since}, "ended_at": {"$ne": None}}, {"_id": 0},
+        {"user_id": user_id, "started_at": {"$gte": since}, "ended_at": {"$ne": None}}, {"_id": 0},
     ).to_list(500)
     ex_ids = {s["exercise_id"] for s in last7}
-    exs = await db.exercises.find({"id": {"$in": list(ex_ids)}, "user_id": DEMO_USER}, {"_id": 0}).to_list(100)
+    exs = await db.exercises.find({"id": {"$in": list(ex_ids)}, "user_id": user_id}, {"_id": 0}).to_list(100)
     bp = {e["id"]: e.get("body_part", "full") for e in exs}
     by_part = {"upper": 0, "lower": 0, "cardio": 0, "full": 0}
     for s in last7:
@@ -646,21 +650,21 @@ async def exercises_summary():
 
 # ============ ROUTINE (dynamic habits) ============
 @api_router.get("/routine/habits")
-async def routine_habits():
+async def routine_habits(user_id: str = Depends(get_current_user)):
     """Compute habit consistency from real data for last 7 days."""
     today = datetime.now(timezone.utc)
     since = today - timedelta(days=7)
     since_iso = since.isoformat()
 
-    sleeps = await db.sleep_entries.find({"user_id": DEMO_USER}, {"_id": 0}).sort("date", -1).to_list(7)
+    sleeps = await db.sleep_entries.find({"user_id": user_id}, {"_id": 0}).sort("date", -1).to_list(7)
     journals = await db.journal_entries.find(
-        {"user_id": DEMO_USER, "created_at": {"$gte": since_iso}}, {"_id": 0},
+        {"user_id": user_id, "created_at": {"$gte": since_iso}}, {"_id": 0},
     ).to_list(100)
     exercises = await db.exercise_sessions.find(
-        {"user_id": DEMO_USER, "started_at": {"$gte": since_iso}, "ended_at": {"$ne": None}}, {"_id": 0},
+        {"user_id": user_id, "started_at": {"$gte": since_iso}, "ended_at": {"$ne": None}}, {"_id": 0},
     ).to_list(200)
     moods = await db.mood_entries.find(
-        {"user_id": DEMO_USER, "created_at": {"$gte": since_iso}}, {"_id": 0},
+        {"user_id": user_id, "created_at": {"$gte": since_iso}}, {"_id": 0},
     ).to_list(50)
 
     days_with_sleep_7h = len([s for s in sleeps if s.get("hours", 0) >= 7])
@@ -677,18 +681,19 @@ async def routine_habits():
 
 
 # ============ WELLNESS AI CARDS ============
-async def _generate_wellness_cards(card_kind: str) -> List[Dict[str, str]]:
+async def _generate_wellness_cards(card_kind: str, user_id: str) -> List[Dict[str, str]]:
     """Use Wellness Buddy (Claude) to produce 2 short personalized cards.
 
     Falls back to safe defaults on any error so the UI never blocks.
     """
-    profile = await db.user_profiles.find_one({"user_id": DEMO_USER}, {"_id": 0}) or {}
+    profile = await db.user_profiles.find_one({"user_id": user_id}, {"_id": 0}) or {}
     pattern = profile.get("your_pattern", {}) or {}
-    moods = await db.mood_entries.find({"user_id": DEMO_USER}, {"_id": 0}).sort("created_at", -1).to_list(7)
-    tasks = await db.tasks.find({"user_id": DEMO_USER}, {"_id": 0}).to_list(20)
-    goals = await db.goals.find({"user_id": DEMO_USER}, {"_id": 0}).to_list(20)
-    sleeps = await db.sleep_entries.find({"user_id": DEMO_USER}, {"_id": 0}).sort("date", -1).to_list(7)
+    moods = await db.mood_entries.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).to_list(7)
+    tasks = await db.tasks.find({"user_id": user_id}, {"_id": 0}).to_list(20)
+    goals = await db.goals.find({"user_id": user_id}, {"_id": 0}).to_list(20)
+    sleeps = await db.sleep_entries.find({"user_id": user_id}, {"_id": 0}).sort("date", -1).to_list(7)
 
+    user_name = profile.get("name", "User")
     context = {
         "pattern": pattern,
         "recent_moods": [{"mood": m["mood"], "stress": m.get("stress", 50)} for m in moods[:5]],
@@ -703,13 +708,13 @@ async def _generate_wellness_cards(card_kind: str) -> List[Dict[str, str]]:
     sys = (
         "You are Wellness Buddy. Respond with EXACTLY this JSON shape and nothing else: "
         '[{"kind":"motivational","title":"...","text":"..."},{"kind":"plan","title":"...","text":"..."}]. '
-        "Each text <= 30 words. Speak warmly to Alex. Use the user's saved pattern and recent data."
+        f"Each text <= 30 words. Speak warmly to {user_name}. Use the user's saved pattern and recent data."
     )
     user_msg = f"Context: {context}\nWrite {kind_hint}"
     try:
         chat = LlmChat(
             api_key=EMERGENT_LLM_KEY,
-            session_id=f"{DEMO_USER}-wellness-cards-{card_kind}",
+            session_id=f"{user_id}-wellness-cards-{card_kind}",
             system_message=sys,
         ).with_model("anthropic", "claude-sonnet-4-5-20250929")
         full = ""
@@ -737,13 +742,13 @@ async def _generate_wellness_cards(card_kind: str) -> List[Dict[str, str]]:
 
 
 @api_router.get("/wellness/cards")
-async def wellness_cards(kind: str = "stress"):
-    return await _generate_wellness_cards(kind)
+async def wellness_cards(kind: str = "stress", user_id: str = Depends(get_current_user)):
+    return await _generate_wellness_cards(kind, user_id)
 
 
 # ============ DISCOVER (static seed) ============
 @api_router.get("/discover/food")
-async def discover_food():
+async def discover_food(user_id: str = Depends(get_current_user)):
     return [
         {"name": "Mess Express", "price": 50, "rating": 4.3, "distance": "0.2 km", "tag": "Full meal", "image": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400"},
         {"name": "Roll Zone", "price": 40, "rating": 4.5, "distance": "0.4 km", "tag": "Rolls", "image": "https://images.unsplash.com/photo-1565299507177-b0ac66763828?w=400"},
@@ -753,7 +758,7 @@ async def discover_food():
 
 
 @api_router.get("/discover/travel")
-async def discover_travel():
+async def discover_travel(user_id: str = Depends(get_current_user)):
     return [
         {"mode": "Metro", "cost": 30, "time": "25 min", "icon": "train", "safe": True},
         {"mode": "Cycle", "cost": 0, "time": "40 min", "icon": "bike", "safe": True},
@@ -763,7 +768,7 @@ async def discover_travel():
 
 
 @api_router.get("/discover/snacks")
-async def discover_snacks():
+async def discover_snacks(user_id: str = Depends(get_current_user)):
     return [
         {"name": "Almonds + Banana", "nutrition": 9, "budget": 8, "tag": "Brain food"},
         {"name": "Roasted Chana", "nutrition": 8, "budget": 10, "tag": "Protein"},
@@ -773,7 +778,7 @@ async def discover_snacks():
 
 
 @api_router.get("/discover/activities")
-async def discover_activities():
+async def discover_activities(user_id: str = Depends(get_current_user)):
     return [
         {"name": "5-min stretch", "duration": "5 min", "type": "movement"},
         {"name": "Box breathing", "duration": "3 min", "type": "calm"},
@@ -783,7 +788,7 @@ async def discover_activities():
 
 
 @api_router.get("/discover/campus")
-async def discover_campus():
+async def discover_campus(user_id: str = Depends(get_current_user)):
     return [
         {"name": "Counseling Center", "type": "wellness", "available": True},
         {"name": "Peer Tutoring", "type": "study", "available": True},
@@ -793,10 +798,10 @@ async def discover_campus():
 
 
 # ============ PROFILE ============
-async def compute_streak() -> int:
+async def compute_streak(user_id: str) -> int:
     """Count consecutive days ending today or yesterday with at least one mood entry."""
     moods = await db.mood_entries.find(
-        {"user_id": DEMO_USER}, {"_id": 0, "created_at": 1}
+        {"user_id": user_id}, {"_id": 0, "created_at": 1}
     ).sort("created_at", -1).to_list(400)
     if not moods:
         return 0
@@ -814,32 +819,32 @@ async def compute_streak() -> int:
 
 
 @api_router.get("/profile")
-async def get_profile():
-    p = await db.user_profiles.find_one({"user_id": DEMO_USER}, {"_id": 0})
+async def get_profile(user_id: str = Depends(get_current_user)):
+    p = await db.user_profiles.find_one({"user_id": user_id}, {"_id": 0})
     if not p:
-        p = UserProfile().model_dump()
+        p = UserProfile(user_id=user_id).model_dump()
         await db.user_profiles.insert_one(p)
     # ensure new keys exist for older docs
     p.setdefault("onboarded", False)
     p.setdefault("your_pattern", {})
     # compute live streak
-    p["streak_days"] = await compute_streak()
+    p["streak_days"] = await compute_streak(user_id)
     return p
 
 
 @api_router.patch("/profile")
-async def update_profile(payload: Dict[str, Any]):
+async def update_profile(payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
     payload.pop("user_id", None)
     payload.pop("streak_days", None)  # streak is always computed
     # avatar initial follows first letter of name
     if "name" in payload and payload["name"]:
         payload["avatar_initial"] = payload["name"].strip()[:1].upper()
-    await db.user_profiles.update_one({"user_id": DEMO_USER}, {"$set": payload}, upsert=True)
-    return await get_profile()
+    await db.user_profiles.update_one({"user_id": user_id}, {"$set": payload}, upsert=True)
+    return await get_profile(user_id)
 
 
 @api_router.post("/profile/onboard")
-async def onboard(payload: Dict[str, Any]):
+async def onboard(payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
     """Persist Your-Pattern, mark onboarded=true, optionally create Goal entries.
 
     Accepts {name, your_pattern, goals: [str | {title, target, current?}]}.
@@ -851,21 +856,21 @@ async def onboard(payload: Dict[str, Any]):
         update["avatar_initial"] = update["name"][:1].upper()
     if isinstance(payload.get("your_pattern"), dict):
         update["your_pattern"] = payload["your_pattern"]
-    await db.user_profiles.update_one({"user_id": DEMO_USER}, {"$set": update}, upsert=True)
+    await db.user_profiles.update_one({"user_id": user_id}, {"$set": update}, upsert=True)
 
     goals_in = payload.get("goals") or []
     if goals_in:
         # replace any previously onboarding-created goals so re-running stays clean
-        await db.goals.delete_many({"user_id": DEMO_USER, "source": "onboard"})
+        await db.goals.delete_many({"user_id": user_id, "source": "onboard"})
         for g in goals_in:
             if isinstance(g, str):
                 title = g.strip()
                 if not title:
                     continue
-                goal = Goal(user_id=DEMO_USER, title=title, target=100, current=0)
+                goal = Goal(user_id=user_id, title=title, target=100, current=0)
             elif isinstance(g, dict) and g.get("title"):
                 goal = Goal(
-                    user_id=DEMO_USER, title=g["title"].strip(),
+                    user_id=user_id, title=g["title"].strip(),
                     target=float(g.get("target") or 100),
                     current=float(g.get("current") or 0),
                 )
@@ -874,21 +879,21 @@ async def onboard(payload: Dict[str, Any]):
             doc = goal.model_dump()
             doc["source"] = "onboard"
             await db.goals.insert_one(doc)
-    return await get_profile()
+    return await get_profile(user_id)
 
 
 # ============ TASKS ============
 @api_router.get("/tasks")
-async def get_tasks():
-    return await db.tasks.find({"user_id": DEMO_USER}, {"_id": 0}).sort("created_at", -1).to_list(100)
+async def get_tasks(user_id: str = Depends(get_current_user)):
+    return await db.tasks.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
 
 
 @api_router.post("/tasks")
-async def create_task(payload: Dict[str, Any]):
+async def create_task(payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
     title = (payload.get("title") or "").strip()
     if not title:
         raise HTTPException(400, "Title required")
-    t = Task(user_id=DEMO_USER, title=title,
+    t = Task(user_id=user_id, title=title,
              target_minutes=int(payload.get("target_minutes") or 60),
              progress=int(payload.get("progress") or 0))
     await db.tasks.insert_one(t.model_dump())
@@ -896,7 +901,7 @@ async def create_task(payload: Dict[str, Any]):
 
 
 @api_router.patch("/tasks/{task_id}")
-async def update_task(task_id: str, payload: Dict[str, Any]):
+async def update_task(task_id: str, payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
     payload.pop("id", None); payload.pop("user_id", None)
     if "progress" in payload:
         payload["progress"] = max(0, min(100, int(payload["progress"])))
@@ -906,33 +911,33 @@ async def update_task(task_id: str, payload: Dict[str, Any]):
         else:
             payload["status"] = "active"
             payload["completed_at"] = None
-    await db.tasks.update_one({"id": task_id, "user_id": DEMO_USER}, {"$set": payload})
+    await db.tasks.update_one({"id": task_id, "user_id": user_id}, {"$set": payload})
     return await db.tasks.find_one({"id": task_id}, {"_id": 0})
 
 
 @api_router.delete("/tasks/{task_id}")
-async def delete_task(task_id: str):
-    await db.tasks.delete_one({"id": task_id, "user_id": DEMO_USER})
-    await db.task_sessions.delete_many({"task_id": task_id, "user_id": DEMO_USER})
+async def delete_task(task_id: str, user_id: str = Depends(get_current_user)):
+    await db.tasks.delete_one({"id": task_id, "user_id": user_id})
+    await db.task_sessions.delete_many({"task_id": task_id, "user_id": user_id})
     return {"deleted": 1}
 
 
 @api_router.post("/tasks/{task_id}/start")
-async def start_task_session(task_id: str):
+async def start_task_session(task_id: str, user_id: str = Depends(get_current_user)):
     # close any open session for this task first
     await db.task_sessions.update_many(
-        {"task_id": task_id, "user_id": DEMO_USER, "ended_at": None},
+        {"task_id": task_id, "user_id": user_id, "ended_at": None},
         {"$set": {"ended_at": now_iso()}},
     )
-    s = TaskSession(task_id=task_id)
+    s = TaskSession(task_id=task_id, user_id=user_id)
     await db.task_sessions.insert_one(s.model_dump())
     return s
 
 
 @api_router.post("/tasks/{task_id}/stop")
-async def stop_task_session(task_id: str, payload: Dict[str, Any]):
+async def stop_task_session(task_id: str, payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
     open_s = await db.task_sessions.find_one(
-        {"task_id": task_id, "user_id": DEMO_USER, "ended_at": None},
+        {"task_id": task_id, "user_id": user_id, "ended_at": None},
         {"_id": 0}, sort=[("started_at", -1)],
     )
     if not open_s:
@@ -949,9 +954,9 @@ async def stop_task_session(task_id: str, payload: Dict[str, Any]):
 
 
 @api_router.get("/tasks/{task_id}/sessions")
-async def get_task_sessions(task_id: str):
+async def get_task_sessions(task_id: str, user_id: str = Depends(get_current_user)):
     sessions = await db.task_sessions.find(
-        {"task_id": task_id, "user_id": DEMO_USER}, {"_id": 0}
+        {"task_id": task_id, "user_id": user_id}, {"_id": 0}
     ).sort("started_at", -1).to_list(100)
     total = sum(s.get("elapsed_seconds", 0) for s in sessions)
     active = next((s for s in sessions if not s.get("ended_at")), None)
@@ -960,7 +965,7 @@ async def get_task_sessions(task_id: str):
 
 # ============ AUTO-BALANCE BUDGET ============
 @api_router.post("/budget/auto-balance")
-async def auto_balance(payload: Dict[str, Any]):
+async def auto_balance(payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
     """Distribute income using 50/30/20 rule across user categories.
 
     needs (50%): Food, Transport, Education, Housing/Rent
@@ -972,11 +977,11 @@ async def auto_balance(payload: Dict[str, Any]):
         raise HTTPException(400, "Income must be > 0")
     # persist on profile
     await db.user_profiles.update_one(
-        {"user_id": DEMO_USER}, {"$set": {"monthly_income": income}}, upsert=True,
+        {"user_id": user_id}, {"$set": {"monthly_income": income}}, upsert=True,
     )
     NEEDS = {"food", "transport", "education", "rent", "housing", "groceries"}
     WANTS = {"entertainment", "miscellaneous", "misc", "subscriptions", "shopping"}
-    cats = await list_docs("budget_categories")
+    cats = await list_docs("budget_categories", user_id=user_id)
     needs = [c for c in cats if c["name"].lower() in NEEDS]
     wants = [c for c in cats if c["name"].lower() in WANTS]
     savings = [c for c in cats if c["name"].lower() in {"savings", "save", "savings goal"}]
@@ -997,20 +1002,20 @@ async def auto_balance(payload: Dict[str, Any]):
 
     if not savings:
         # ensure a Savings category exists
-        new_save = BudgetCategory(user_id=DEMO_USER, name="Savings", allocated=round(income * 0.2))
+        new_save = BudgetCategory(user_id=user_id, name="Savings", allocated=round(income * 0.2))
         await db.budget_categories.insert_one(new_save.model_dump())
 
     for cid, amount in asyncio_updates:
         await db.budget_categories.update_one(
-            {"id": cid, "user_id": DEMO_USER}, {"$set": {"allocated": amount}},
+            {"id": cid, "user_id": user_id}, {"$set": {"allocated": amount}},
         )
     return {"ok": True, "income": income, "rule": "50/30/20"}
 
 
 # ============ CASHFLOW (dynamic) ============
 @api_router.get("/cashflow")
-async def cashflow():
-    cats = await list_docs("budget_categories")
+async def cashflow(user_id: str = Depends(get_current_user)):
+    cats = await list_docs("budget_categories", user_id=user_id)
     total_alloc = sum(c["allocated"] for c in cats) or 0
     total_spent = sum(c["spent"] for c in cats) or 0
     today = datetime.now(timezone.utc)
@@ -1025,7 +1030,7 @@ async def cashflow():
     # 14-day spending trend (last 14 days)
     since = (today - timedelta(days=14)).isoformat()
     expenses = await db.expenses.find(
-        {"user_id": DEMO_USER, "created_at": {"$gte": since}}, {"_id": 0},
+        {"user_id": user_id, "created_at": {"$gte": since}}, {"_id": 0},
     ).to_list(500)
     trend = []
     for i in range(14):
@@ -1046,7 +1051,7 @@ async def cashflow():
 
 # ============ FITNESS (dynamic) ============
 @api_router.get("/fitness/today")
-async def fitness_today():
+async def fitness_today(user_id: str = Depends(get_current_user)):
     # Deterministic per-day mock so values feel "live" but are stable
     today = datetime.now(timezone.utc).date()
     seed = today.toordinal()
@@ -1059,14 +1064,14 @@ async def fitness_today():
 
 # ============ HELPER (life balance + insights) ============
 @api_router.get("/life-balance")
-async def life_balance():
-    cats = await list_docs("budget_categories")
+async def life_balance(user_id: str = Depends(get_current_user)):
+    cats = await list_docs("budget_categories", user_id=user_id)
     spent_pct = sum(c["spent"] for c in cats) / max(sum(c["allocated"] for c in cats), 1) * 100
     finance = max(0, 100 - (spent_pct - 70))  # less spend = better
     finance = round(min(100, max(0, finance)))
-    w = await wellness_scores()
+    w = await wellness_scores(user_id)
     wellness = w["burnout_score"]
-    goals = await list_docs("goals")
+    goals = await list_docs("goals", user_id=user_id)
     productivity = round(sum(g["current"] for g in goals) / max(len(goals), 1)) if goals else 60
     discover = 78
     overall = round((finance + wellness + productivity + discover) / 4)
@@ -1082,7 +1087,7 @@ async def life_balance():
 
 
 @api_router.get("/insights/daily")
-async def daily_insights():
+async def daily_insights(user_id: str = Depends(get_current_user)):
     return [
         {"domain": "finance", "title": "Snacks spending up 22%", "detail": "Try hostel mess twice this week to save ~₹250.", "icon": "trending-up"},
         {"domain": "wellness", "title": "Sleep dropped 45 min", "detail": "Aim for a 11:30pm bedtime tonight.", "icon": "moon"},
@@ -1092,7 +1097,7 @@ async def daily_insights():
 
 
 @api_router.get("/insights/weekly")
-async def weekly_insights():
+async def weekly_insights(user_id: str = Depends(get_current_user)):
     return {
         "scorecard": [
             {"domain": "Finance", "score": 78, "trend": "+4"},
@@ -1124,16 +1129,16 @@ class ChatRequest(BaseModel):
 
 
 @api_router.post("/chat/{buddy}")
-async def chat_stream(buddy: str, req: ChatRequest):
+async def chat_stream(buddy: str, req: ChatRequest, user_id: str = Depends(get_current_user)):
     if buddy not in BUDDY_MODELS:
         raise HTTPException(404, "Unknown buddy")
     provider, model, base_system = BUDDY_MODELS[buddy]
-    session_id = req.session_id or f"{DEMO_USER}-{buddy}"
+    session_id = req.session_id or f"{user_id}-{buddy}"
 
     # inject user's "Your Pattern" + name so chat replies stay consistent
-    profile = await db.user_profiles.find_one({"user_id": DEMO_USER}, {"_id": 0}) or {}
+    profile = await db.user_profiles.find_one({"user_id": user_id}, {"_id": 0}) or {}
     pattern = profile.get("your_pattern") or {}
-    user_name = profile.get("name", "Alex")
+    user_name = profile.get("name", "User")
     pattern_block = ""
     if pattern:
         # human-readable pairs
@@ -1144,7 +1149,7 @@ async def chat_stream(buddy: str, req: ChatRequest):
     system = base_system + pattern_block
 
     # store user message
-    await db.chat_messages.insert_one(ChatMessage(buddy=buddy, role="user", content=req.message).model_dump())
+    await db.chat_messages.insert_one(ChatMessage(user_id=user_id, buddy=buddy, role="user", content=req.message).model_dump())
 
     chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=session_id, system_message=system).with_model(provider, model)
 
@@ -1164,7 +1169,7 @@ async def chat_stream(buddy: str, req: ChatRequest):
             yield f"data: [error] {str(e)}\n\n"
         # persist assistant message
         try:
-            await db.chat_messages.insert_one(ChatMessage(buddy=buddy, role="assistant", content=full).model_dump())
+            await db.chat_messages.insert_one(ChatMessage(user_id=user_id, buddy=buddy, role="assistant", content=full).model_dump())
         except Exception:
             pass
         yield "data: [DONE]\n\n"
@@ -1174,22 +1179,27 @@ async def chat_stream(buddy: str, req: ChatRequest):
 
 
 @api_router.get("/chat/{buddy}/history")
-async def chat_history(buddy: str, limit: int = 50):
-    msgs = await db.chat_messages.find({"user_id": DEMO_USER, "buddy": buddy}, {"_id": 0}).sort("created_at", 1).to_list(limit)
+async def chat_history(buddy: str, limit: int = 50, user_id: str = Depends(get_current_user)):
+    msgs = await db.chat_messages.find({"user_id": user_id, "buddy": buddy}, {"_id": 0}).sort("created_at", 1).to_list(limit)
     return msgs
 
 
 @api_router.delete("/chat/{buddy}/history")
-async def clear_chat(buddy: str):
-    await db.chat_messages.delete_many({"user_id": DEMO_USER, "buddy": buddy})
+async def clear_chat(buddy: str, user_id: str = Depends(get_current_user)):
+    await db.chat_messages.delete_many({"user_id": user_id, "buddy": buddy})
     return {"ok": True}
 
 
 # ============ HEALTH ============
 @api_router.get("/")
 async def root():
-    return {"app": "PocketBuddy", "status": "ok", "user": DEMO_USER}
+    return {"app": "PocketBuddy", "status": "ok"}
 
+
+# ============ AUTH ROUTER ============
+from auth_router import auth_router, set_db as auth_set_db
+auth_set_db(db)
+app.include_router(auth_router)
 
 app.include_router(api_router)
 
