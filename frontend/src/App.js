@@ -1,55 +1,57 @@
-import { useEffect } from "react";
-import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
-import { HOME } from "@/constants/testIds";
+import React, { useEffect } from "react";
+import "./App.css";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { DomainProvider, useDomain } from "./context/DomainContext";
+import { PhoneFrame } from "./components/PhoneFrame";
+import { BottomNav } from "./components/BottomNav";
+import DailyHub from "./pages/DailyHub";
+import FinanceBuddy from "./pages/FinanceBuddy";
+import WellnessBuddy from "./pages/WellnessBuddy";
+import DiscoverBuddy from "./pages/DiscoverBuddy";
+import ChatCenter from "./pages/ChatCenter";
+import BuddyChat from "./pages/BuddyChat";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+const ROUTE_DOMAIN = {
+  "/": "daily",
+  "/finance": "finance",
+  "/wellness": "wellness",
+  "/discover": "discover",
+  "/chat": "helper",
+};
 
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
+const Shell = () => {
+  const loc = useLocation();
+  const { setDomain } = useDomain();
+  const isChat = loc.pathname.startsWith("/chat/");
 
   useEffect(() => {
-    helloWorldApi();
-  }, []);
+    if (isChat) return;
+    const d = ROUTE_DOMAIN[loc.pathname] || "daily";
+    setDomain(d);
+  }, [loc.pathname, isChat, setDomain]);
 
   return (
-    <div>
-      <header className="App-header">
-        <a
-          data-testid={HOME.emergentLink}
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
+    <PhoneFrame>
+      <Routes>
+        <Route path="/" element={<DailyHub />} />
+        <Route path="/finance" element={<FinanceBuddy />} />
+        <Route path="/wellness" element={<WellnessBuddy />} />
+        <Route path="/discover" element={<DiscoverBuddy />} />
+        <Route path="/chat" element={<ChatCenter />} />
+        <Route path="/chat/:buddy" element={<BuddyChat />} />
+      </Routes>
+      {!isChat && <BottomNav />}
+    </PhoneFrame>
   );
 };
 
 function App() {
   return (
-    <div className="App">
+    <DomainProvider>
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
+        <Shell />
       </BrowserRouter>
-    </div>
+    </DomainProvider>
   );
 }
 
