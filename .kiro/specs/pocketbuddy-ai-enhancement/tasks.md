@@ -31,7 +31,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - Update `App.js` to add auth routes and protect authenticated routes
     - _Requirements: 8.1, 8.2, 8.3, 8.7_
 
-  - [~] 1.4 Write property tests for authentication validation
+  - [x] 1.4 Write property tests for authentication validation
     - **Property 23: Registration Validation** — Generate random emails/passwords, verify validation rules and bcrypt output
     - **Property 24: Authentication Enforcement** — Generate requests without valid JWT, verify 401 responses
     - **Property 25: Login Rate Limiting** — Generate failed login sequences, verify lockout after 5 attempts

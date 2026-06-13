@@ -137,9 +137,6 @@ async def register(req: RegisterRequest):
 
     await db.users.insert_one(user_doc)
 
-    # Create unique index on email (idempotent)
-    await db.users.create_index("email", unique=True)
-
     logger.info(f"New user registered: {email}")
 
     return TokenResponse(
