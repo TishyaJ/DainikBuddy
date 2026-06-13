@@ -21,6 +21,8 @@ import Onboarding from "./pages/Onboarding";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import StudyGroups from "./pages/StudyGroups";
+import GroupDetail from "./components/GroupDetail";
 import { api } from "./lib/api";
 import { Loader2 } from "lucide-react";
 
@@ -76,6 +78,7 @@ const Shell = () => {
   const { setDomain } = useDomain();
   const isChat = loc.pathname.startsWith("/chat/");
   const isProfile = loc.pathname === "/profile";
+  const isGroupDetail = loc.pathname.startsWith("/social/group/");
   const [profile, setProfile] = useState(null);
 
   useEffect(() => {
@@ -89,7 +92,7 @@ const Shell = () => {
   }, []);
 
   const showOnboarding = profile && !profile.onboarded;
-  const showNav = !isChat && !isProfile && !showOnboarding;
+  const showNav = !isChat && !isProfile && !isGroupDetail && !showOnboarding;
 
   return (
     <>
@@ -106,6 +109,8 @@ const Shell = () => {
           <Route path="/profile" element={<Profile />} />
           <Route path="/notifications" element={<NotificationCenter />} />
           <Route path="/notifications/preferences" element={<NotificationPreferences />} />
+          <Route path="/social" element={<StudyGroups />} />
+          <Route path="/social/group/:groupId" element={<GroupDetail />} />
         </Routes>
       )}
       {showNav && <BottomNav />}
