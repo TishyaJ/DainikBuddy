@@ -37,8 +37,8 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - **Property 25: Login Rate Limiting** — Generate failed login sequences, verify lockout after 5 attempts
     - **Validates: Requirements 8.1, 8.2, 8.4, 8.9**
 
-- [ ] 2. Gamification Engine
-  - [~] 2.1 Create backend gamification service and router
+- [-] 2. Gamification Engine
+  - [-] 2.1 Create backend gamification service and router
     - Create `backend/gamification_service.py` with XP award logic, streak computation, level calculation, achievement tracking
     - Create `backend/gamification_router.py` with `/api/gamification/status`, `/api/gamification/achievements` endpoints
     - Implement daily caps: mood check-in 10 XP (first only), expense 5 XP (max 10/day), journal 10 XP (first only)

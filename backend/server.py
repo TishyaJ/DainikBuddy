@@ -12,6 +12,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from emergentintegrations.llm.chat import LlmChat, UserMessage, TextDelta, StreamDone
 from jwt_middleware import get_current_user
+import gamification_service
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -349,6 +350,8 @@ def simple_sentiment(text: str) -> tuple[str, float]:
 async def create_mood(entry: MoodEntry, user_id: str = Depends(get_current_user)):
     entry.user_id = user_id
     await db.mood_entries.insert_one(entry.model_dump())
+    # Award gamification XP for mood check-in
+    await gamification_service.award_xp(user_id, "mood_checkin")
     return entry
 
 
@@ -369,6 +372,8 @@ async def create_expense(e: Expense, user_id: str = Depends(get_current_user)):
         {"user_id": user_id, "name": {"$regex": f"^{e.category}$", "$options": "i"}},
         {"$inc": {"spent": e.amount}},
     )
+    # Award gamification XP for expense log
+    await gamification_service.award_xp(user_id, "expense_log")
     return e
 
 
@@ -391,6 +396,8 @@ async def create_journal(j: JournalEntry, user_id: str = Depends(get_current_use
     j.sentiment = sent
     j.sentiment_score = score
     await db.journal_entries.insert_one(j.model_dump())
+    # Award gamification XP for journal entry
+    await gamification_service.award_xp(user_id, "journal_entry")
     return j
 
 
@@ -1200,6 +1207,10 @@ async def root():
 from auth_router import auth_router, set_db as auth_set_db
 auth_set_db(db)
 app.include_router(auth_router)
+
+# ============ GAMIFICATION ROUTER ============
+from gamification_router import gamification_router
+app.include_router(gamification_router)
 
 app.include_router(api_router)
 
