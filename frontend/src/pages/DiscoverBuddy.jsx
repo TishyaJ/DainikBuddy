@@ -207,26 +207,39 @@ const Goals = () => (
   </div>
 );
 
-const Fitness = () => (
-  <div className="mx-5 mt-4 space-y-3">
-    <Card>
-      <h3 className="font-display font-bold text-base">Fitness Today</h3>
-      <div className="grid grid-cols-3 gap-2 mt-3">
-        <div className="p-3 rounded-xl bg-slate-50 text-center"><div className="text-[10px] text-slate-500">Steps</div><div className="font-bold text-lg">7,420</div></div>
-        <div className="p-3 rounded-xl bg-slate-50 text-center"><div className="text-[10px] text-slate-500">Active min</div><div className="font-bold text-lg">38</div></div>
-        <div className="p-3 rounded-xl bg-rose-50 text-center"><div className="text-[10px] text-rose-600">Sedentary</div><div className="font-bold text-lg text-rose-700">6h</div></div>
-      </div>
-      <div className="mt-4">
-        <h4 className="text-xs font-semibold text-slate-600">Upper / Lower body balance</h4>
-        <div className="flex items-end gap-1 mt-2 h-20">
-          {[60, 80, 45, 70, 55, 30, 65].map((v, i) => (
-            <div key={i} className="flex-1 rounded-t bdy-bg" style={{ height: `${v}%` }} />
-          ))}
+const Fitness = () => {
+  const [data, setData] = useState({ steps: 0, active_minutes: 0, sedentary_hours: 0, body_balance: [] });
+  useEffect(() => { api.get("/fitness/today").then((r) => setData(r.data)); }, []);
+  return (
+    <div className="mx-5 mt-4 space-y-3">
+      <Card>
+        <h3 className="font-display font-bold text-base">Fitness Today</h3>
+        <div className="grid grid-cols-3 gap-2 mt-3">
+          <div className="p-3 rounded-xl bg-slate-50 text-center" data-testid="fit-steps">
+            <div className="text-[10px] text-slate-500">Steps</div>
+            <div className="font-bold text-lg">{data.steps.toLocaleString()}</div>
+          </div>
+          <div className="p-3 rounded-xl bg-slate-50 text-center" data-testid="fit-active">
+            <div className="text-[10px] text-slate-500">Active min</div>
+            <div className="font-bold text-lg">{data.active_minutes}</div>
+          </div>
+          <div className="p-3 rounded-xl bg-rose-50 text-center" data-testid="fit-sedentary">
+            <div className="text-[10px] text-rose-600">Sedentary</div>
+            <div className="font-bold text-lg text-rose-700">{data.sedentary_hours}h</div>
+          </div>
         </div>
-      </div>
-    </Card>
-  </div>
-);
+        <div className="mt-4">
+          <h4 className="text-xs font-semibold text-slate-600">Upper / Lower body balance</h4>
+          <div className="flex items-end gap-1 mt-2 h-20">
+            {data.body_balance.map((v, i) => (
+              <div key={i} className="flex-1 rounded-t bdy-bg" style={{ height: `${v}%` }} />
+            ))}
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
 
 const TABS = [
   { key: "dash", label: "Dashboard", C: Dashboard },

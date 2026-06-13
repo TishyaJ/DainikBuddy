@@ -129,11 +129,53 @@ class ChatMessage(BaseModel):
     created_at: str = Field(default_factory=now_iso)
 
 
+class UserProfile(BaseModel):
+    user_id: str = DEMO_USER
+    name: str = "Alex"
+    monthly_income: float = 16000
+    streak_days: int = 5
+    avatar_initial: str = "A"
+
+
+class Task(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str = DEMO_USER
+    title: str
+    target_minutes: int = 60
+    progress: int = 0  # 0..100
+    status: str = "active"  # active/done
+    created_at: str = Field(default_factory=now_iso)
+    completed_at: Optional[str] = None
+
+
+class TaskSession(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    task_id: str
+    user_id: str = DEMO_USER
+    started_at: str = Field(default_factory=now_iso)
+    ended_at: Optional[str] = None
+    elapsed_seconds: int = 0
+    comment: str = ""
+
+
 # ============ SEED ============
 async def seed_demo_data():
-    """Seed demo data once for user 'alex'."""
-    if await db.budget_categories.count_documents({"user_id": DEMO_USER}) > 0:
-        return
+    """Seed demo data once for user 'alex' (idempotent for profile & tasks)."""
+    if await db.budget_categories.count_documents({"user_id": DEMO_USER}) == 0:
+        await _seed_main()
+    if not await db.user_profiles.find_one({"user_id": DEMO_USER}):
+        await db.user_profiles.insert_one(UserProfile().model_dump())
+    if await db.tasks.count_documents({"user_id": DEMO_USER}) == 0:
+        defaults = [
+            {"title": "Study Math chapter 4", "target_minutes": 90, "progress": 40},
+            {"title": "Read 20 pages", "target_minutes": 30, "progress": 70},
+            {"title": "Workout", "target_minutes": 45, "progress": 0},
+        ]
+        for t in defaults:
+            await db.tasks.insert_one(Task(user_id=DEMO_USER, **t).model_dump())
+
+
+async def _seed_main():
     cats = [
         {"name": "Food", "allocated": 6000, "spent": 4230},
         {"name": "Transport", "allocated": 3000, "spent": 1650},
@@ -202,6 +244,34 @@ async def seed_demo_data():
     ]
     for e in today_exp:
         await db.expenses.insert_one(Expense(user_id=DEMO_USER, **e).model_dump())
+
+    # profile (only if missing)
+    if not await db.user_profiles.find_one({"user_id": DEMO_USER}):
+        await db.user_profiles.insert_one(UserProfile().model_dump())
+
+    # default daily tasks
+    if await db.tasks.count_documents({"user_id": DEMO_USER}) == 0:
+        defaults = [
+            {"title": "Study Math chapter 4", "target_minutes": 90, "progress": 40},
+            {"title": "Read 20 pages", "target_minutes": 30, "progress": 70},
+            {"title": "Workout", "target_minutes": 45, "progress": 0},
+        ]
+        for t in defaults:
+            await db.tasks.insert_one(Task(user_id=DEMO_USER, **t).model_dump())
+
+    # profile (only if missing)
+    if not await db.user_profiles.find_one({"user_id": DEMO_USER}):
+        await db.user_profiles.insert_one(UserProfile().model_dump())
+
+    # default daily tasks
+    if await db.tasks.count_documents({"user_id": DEMO_USER}) == 0:
+        defaults = [
+            {"title": "Study Math chapter 4", "target_minutes": 90, "progress": 40},
+            {"title": "Read 20 pages", "target_minutes": 30, "progress": 70},
+            {"title": "Workout", "target_minutes": 45, "progress": 0},
+        ]
+        for t in defaults:
+            await db.tasks.insert_one(Task(user_id=DEMO_USER, **t).model_dump())
 
 
 @app.on_event("startup")
@@ -487,6 +557,201 @@ async def discover_campus():
         {"name": "Food Pantry", "type": "aid", "available": True},
         {"name": "Financial Aid Office", "type": "aid", "available": False},
     ]
+
+
+# ============ PROFILE ============
+@api_router.get("/profile")
+async def get_profile():
+    p = await db.user_profiles.find_one({"user_id": DEMO_USER}, {"_id": 0})
+    if not p:
+        p = UserProfile().model_dump()
+        await db.user_profiles.insert_one(p)
+    return p
+
+
+@api_router.patch("/profile")
+async def update_profile(payload: Dict[str, Any]):
+    payload.pop("user_id", None)
+    await db.user_profiles.update_one({"user_id": DEMO_USER}, {"$set": payload}, upsert=True)
+    return await db.user_profiles.find_one({"user_id": DEMO_USER}, {"_id": 0})
+
+
+# ============ TASKS ============
+@api_router.get("/tasks")
+async def get_tasks():
+    return await db.tasks.find({"user_id": DEMO_USER}, {"_id": 0}).sort("created_at", -1).to_list(100)
+
+
+@api_router.post("/tasks")
+async def create_task(payload: Dict[str, Any]):
+    title = (payload.get("title") or "").strip()
+    if not title:
+        raise HTTPException(400, "Title required")
+    t = Task(user_id=DEMO_USER, title=title,
+             target_minutes=int(payload.get("target_minutes") or 60),
+             progress=int(payload.get("progress") or 0))
+    await db.tasks.insert_one(t.model_dump())
+    return t
+
+
+@api_router.patch("/tasks/{task_id}")
+async def update_task(task_id: str, payload: Dict[str, Any]):
+    payload.pop("id", None); payload.pop("user_id", None)
+    if "progress" in payload:
+        payload["progress"] = max(0, min(100, int(payload["progress"])))
+        if payload["progress"] >= 100:
+            payload["status"] = "done"
+            payload["completed_at"] = now_iso()
+        else:
+            payload["status"] = "active"
+            payload["completed_at"] = None
+    await db.tasks.update_one({"id": task_id, "user_id": DEMO_USER}, {"$set": payload})
+    return await db.tasks.find_one({"id": task_id}, {"_id": 0})
+
+
+@api_router.delete("/tasks/{task_id}")
+async def delete_task(task_id: str):
+    await db.tasks.delete_one({"id": task_id, "user_id": DEMO_USER})
+    await db.task_sessions.delete_many({"task_id": task_id, "user_id": DEMO_USER})
+    return {"deleted": 1}
+
+
+@api_router.post("/tasks/{task_id}/start")
+async def start_task_session(task_id: str):
+    # close any open session for this task first
+    await db.task_sessions.update_many(
+        {"task_id": task_id, "user_id": DEMO_USER, "ended_at": None},
+        {"$set": {"ended_at": now_iso()}},
+    )
+    s = TaskSession(task_id=task_id)
+    await db.task_sessions.insert_one(s.model_dump())
+    return s
+
+
+@api_router.post("/tasks/{task_id}/stop")
+async def stop_task_session(task_id: str, payload: Dict[str, Any]):
+    open_s = await db.task_sessions.find_one(
+        {"task_id": task_id, "user_id": DEMO_USER, "ended_at": None},
+        {"_id": 0}, sort=[("started_at", -1)],
+    )
+    if not open_s:
+        raise HTTPException(404, "No active session")
+    ended = now_iso()
+    started_dt = datetime.fromisoformat(open_s["started_at"])
+    elapsed = int((datetime.fromisoformat(ended) - started_dt).total_seconds())
+    comment = (payload.get("comment") or "").strip()
+    await db.task_sessions.update_one(
+        {"id": open_s["id"]},
+        {"$set": {"ended_at": ended, "elapsed_seconds": elapsed, "comment": comment}},
+    )
+    return {**open_s, "ended_at": ended, "elapsed_seconds": elapsed, "comment": comment}
+
+
+@api_router.get("/tasks/{task_id}/sessions")
+async def get_task_sessions(task_id: str):
+    sessions = await db.task_sessions.find(
+        {"task_id": task_id, "user_id": DEMO_USER}, {"_id": 0}
+    ).sort("started_at", -1).to_list(100)
+    total = sum(s.get("elapsed_seconds", 0) for s in sessions)
+    active = next((s for s in sessions if not s.get("ended_at")), None)
+    return {"sessions": sessions, "total_seconds": total, "active": active}
+
+
+# ============ AUTO-BALANCE BUDGET ============
+@api_router.post("/budget/auto-balance")
+async def auto_balance(payload: Dict[str, Any]):
+    """Distribute income using 50/30/20 rule across user categories.
+
+    needs (50%): Food, Transport, Education, Housing/Rent
+    wants (30%): Entertainment, Misc, Subscriptions
+    savings (20%): Savings (single bucket, ensures category exists)
+    """
+    income = float(payload.get("income") or 0)
+    if income <= 0:
+        raise HTTPException(400, "Income must be > 0")
+    # persist on profile
+    await db.user_profiles.update_one(
+        {"user_id": DEMO_USER}, {"$set": {"monthly_income": income}}, upsert=True,
+    )
+    NEEDS = {"food", "transport", "education", "rent", "housing", "groceries"}
+    WANTS = {"entertainment", "miscellaneous", "misc", "subscriptions", "shopping"}
+    cats = await list_docs("budget_categories")
+    needs = [c for c in cats if c["name"].lower() in NEEDS]
+    wants = [c for c in cats if c["name"].lower() in WANTS]
+    savings = [c for c in cats if c["name"].lower() in {"savings", "save", "savings goal"}]
+
+    def split(pool, total):
+        if not pool:
+            return
+        per = round(total / len(pool))
+        for c in pool:
+            asyncio_updates.append((c["id"], per))
+
+    asyncio_updates = []
+    split(needs, income * 0.5)
+    split(wants, income * 0.3)
+    split(savings, income * 0.2)
+
+    if not savings:
+        # ensure a Savings category exists
+        new_save = BudgetCategory(user_id=DEMO_USER, name="Savings", allocated=round(income * 0.2))
+        await db.budget_categories.insert_one(new_save.model_dump())
+
+    for cid, amount in asyncio_updates:
+        await db.budget_categories.update_one(
+            {"id": cid, "user_id": DEMO_USER}, {"$set": {"allocated": amount}},
+        )
+    return {"ok": True, "income": income, "rule": "50/30/20"}
+
+
+# ============ CASHFLOW (dynamic) ============
+@api_router.get("/cashflow")
+async def cashflow():
+    cats = await list_docs("budget_categories")
+    total_alloc = sum(c["allocated"] for c in cats) or 0
+    total_spent = sum(c["spent"] for c in cats) or 0
+    today = datetime.now(timezone.utc)
+    last_day = (today.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+    days_left = max(1, (last_day - today).days)
+    days_elapsed = max(1, today.day)
+    daily_avg = total_spent / days_elapsed
+    forecast_total = total_spent + daily_avg * days_left
+    forecast_remaining = round(total_alloc - forecast_total)
+    overspend = sum(max(0, c["spent"] - c["allocated"] * 0.9) for c in cats)
+    underspend = sum(max(0, c["allocated"] * 0.5 - c["spent"]) for c in cats)
+    # 14-day spending trend (last 14 days)
+    since = (today - timedelta(days=14)).isoformat()
+    expenses = await db.expenses.find(
+        {"user_id": DEMO_USER, "created_at": {"$gte": since}}, {"_id": 0},
+    ).to_list(500)
+    trend = []
+    for i in range(14):
+        d = (today - timedelta(days=13 - i)).date()
+        day_total = sum(
+            e["amount"] for e in expenses
+            if datetime.fromisoformat(e["created_at"]).date() == d
+        )
+        trend.append({"d": d.strftime("%d"), "v": round(day_total)})
+    return {
+        "forecast_remaining": forecast_remaining,
+        "overspend": round(overspend),
+        "underspend": round(underspend),
+        "days_left": days_left,
+        "trend": trend,
+    }
+
+
+# ============ FITNESS (dynamic) ============
+@api_router.get("/fitness/today")
+async def fitness_today():
+    # Deterministic per-day mock so values feel "live" but are stable
+    today = datetime.now(timezone.utc).date()
+    seed = today.toordinal()
+    steps = 5000 + (seed * 137) % 6000
+    active = 20 + (seed * 11) % 50
+    sedentary = round(8 - active / 30, 1)
+    body = [(seed * (i + 3)) % 90 + 10 for i in range(7)]
+    return {"steps": steps, "active_minutes": active, "sedentary_hours": sedentary, "body_balance": body}
 
 
 # ============ HELPER (life balance + insights) ============

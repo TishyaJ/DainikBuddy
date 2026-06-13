@@ -106,21 +106,21 @@ const Expenses = () => {
 };
 
 const CashFlow = () => {
-  const trend = [
-    { d: "1", v: 80 }, { d: "2", v: 120 }, { d: "3", v: 60 }, { d: "4", v: 140 },
-    { d: "5", v: 90 }, { d: "6", v: 200 }, { d: "7", v: 110 }, { d: "8", v: 85 },
-    { d: "9", v: 130 }, { d: "10", v: 95 }, { d: "11", v: 70 }, { d: "12", v: 180 },
-    { d: "13", v: 100 }, { d: "14", v: 120 },
-  ];
+  const [data, setData] = useState({ forecast_remaining: 0, overspend: 0, underspend: 0, days_left: 0, trend: [] });
+  useEffect(() => { api.get("/cashflow").then((r) => setData(r.data)); }, []);
   return (
     <div className="mx-5 mt-4 space-y-3">
       <Card>
         <h3 className="font-display font-bold text-base">Month-End Forecast</h3>
-        <div className="font-display font-bold text-3xl mt-2 bdy-text">₹2,450</div>
-        <p className="text-xs text-slate-500">Predicted leftover by month end</p>
+        <div className={`font-display font-bold text-3xl mt-2 ${data.forecast_remaining >= 0 ? "bdy-text" : "text-rose-600"}`} data-testid="forecast-value">
+          {data.forecast_remaining >= 0 ? "₹" : "-₹"}{Math.abs(data.forecast_remaining).toLocaleString()}
+        </div>
+        <p className="text-xs text-slate-500">
+          {data.forecast_remaining >= 0 ? "Predicted leftover by month end" : "Projected overshoot"} · {data.days_left} days left
+        </p>
         <div className="h-28 mt-3" data-testid="trend-chart">
           <ResponsiveContainer>
-            <LineChart data={trend}>
+            <LineChart data={data.trend}>
               <XAxis dataKey="d" hide />
               <Line type="monotone" dataKey="v" stroke="var(--bdy)" strokeWidth={2.5} dot={false} />
             </LineChart>
@@ -129,11 +129,11 @@ const CashFlow = () => {
         <div className="grid grid-cols-2 gap-2 mt-3">
           <div className="p-3 rounded-xl bg-emerald-50">
             <div className="text-[10px] text-emerald-700 font-semibold">UNDERSPEND</div>
-            <div className="font-bold text-emerald-700">₹620</div>
+            <div className="font-bold text-emerald-700">₹{data.underspend.toLocaleString()}</div>
           </div>
           <div className="p-3 rounded-xl bg-rose-50">
             <div className="text-[10px] text-rose-700 font-semibold">OVERSPEND</div>
-            <div className="font-bold text-rose-700">₹180</div>
+            <div className="font-bold text-rose-700">₹{data.overspend.toLocaleString()}</div>
           </div>
         </div>
       </Card>
@@ -314,15 +314,31 @@ const Splits = () => {
 
 const BudgetEditor = () => {
   const [cats, setCats] = useState([]);
+  const [profile, setProfile] = useState({ monthly_income: 0 });
+  const [income, setIncome] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState({ name: "", allocated: "" });
   const [newCat, setNewCat] = useState({ name: "", allocated: "" });
   const [busy, setBusy] = useState(false);
 
-  const load = async () => setCats((await api.get("/budget")).data.categories);
+  const load = async () => {
+    const [b, p] = await Promise.all([api.get("/budget"), api.get("/profile")]);
+    setCats(b.data.categories);
+    setProfile(p.data);
+    setIncome(String(p.data.monthly_income || ""));
+  };
   useEffect(() => { load(); }, []);
 
   const totalAlloc = cats.reduce((s, c) => s + c.allocated, 0);
+
+  const autoBalance = async () => {
+    const v = parseFloat(income);
+    if (!v || v <= 0) return;
+    setBusy(true);
+    await api.post("/budget/auto-balance", { income: v });
+    await load();
+    setBusy(false);
+  };
 
   const startEdit = (c) => {
     setEditingId(c.id);
@@ -353,8 +369,46 @@ const BudgetEditor = () => {
     setBusy(false);
   };
 
+  const incomeDiff = totalAlloc - (parseFloat(income) || 0);
+
   return (
     <div className="mx-5 mt-4 space-y-3">
+      <Card className="bdy-soft border border-[color:var(--bdy)]/15">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 bdy-text" />
+          <h3 className="font-display font-bold text-base">Auto-balance with 50/30/20</h3>
+        </div>
+        <p className="text-xs text-slate-600 mt-1">Tell us your monthly income — we'll split allocations across Needs (50%), Wants (30%), Savings (20%).</p>
+        <div className="flex gap-2 mt-3">
+          <div className="flex-1 relative">
+            <span className="absolute left-3 top-2.5 text-slate-500 text-sm font-semibold">₹</span>
+            <input
+              data-testid="income-input"
+              type="number" value={income} onChange={(e) => setIncome(e.target.value)}
+              placeholder="Monthly income"
+              className="w-full bg-white rounded-xl pl-7 pr-3 py-2.5 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]"
+            />
+          </div>
+          <button
+            onClick={autoBalance}
+            disabled={busy || !income}
+            data-testid="auto-balance-btn"
+            className="px-4 py-2.5 rounded-xl bdy-bg text-white font-semibold text-sm disabled:opacity-50 active:scale-95"
+          >
+            Apply
+          </button>
+        </div>
+        {parseFloat(income) > 0 && (
+          <div className={`mt-2 text-[11px] font-semibold ${Math.abs(incomeDiff) < 1 ? "text-emerald-600" : incomeDiff > 0 ? "text-rose-600" : "text-amber-600"}`}>
+            {Math.abs(incomeDiff) < 1
+              ? "Balanced ✓ Total matches income"
+              : incomeDiff > 0
+              ? `Over income by ₹${incomeDiff.toLocaleString()}`
+              : `Under income by ₹${Math.abs(incomeDiff).toLocaleString()} — extra savings room`}
+          </div>
+        )}
+      </Card>
+
       <Card>
         <div className="flex justify-between items-start">
           <div>

@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration 2 testing for PocketBuddy: validated all NEW backend endpoints (profile, tasks CRUD + sessions, auto-balance, cashflow, fitness/today) via pytest, and all 6 dynamic-data UI hotspots via Playwright. 10/10 backend tests pass, all frontend data-testids and dynamic values verified.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/budget/auto-balance", "issue": "Rounding can cause total allocations to overshoot/undershoot income by ₹1 (e.g. 25000 -> 25001) because each pool is split with round(); UI then shows 'Over income by ₹1'. Cosmetic only."},
+      {"endpoint": "server.py seed_demo_data", "issue": "_seed_main contains two duplicated blocks (lines 248-274) re-inserting profile + default tasks. Harmless because guarded by find_one/count_documents but is dead code."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Finance > Cash Flow", "issues": ["Recharts emits 'width(-1) height(-1)' warnings on tab mount; chart still renders. Caused by ResponsiveContainer measuring before tab is visible. Non-blocking."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_pocketbuddy_iter2.py",
+    "/app/test_reports/pytest/iter2_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Distribute the rounding remainder of auto-balance to the last category so totals match income exactly.",
+    "(Optional) Remove the duplicated profile/task seeding block at lines 248-274 of server.py."
+  ],
+  "critical_code_review_comments": [
+    "server.py is ~887 lines — approaching the 700-line threshold; consider splitting routers (tasks, budget, wellness, chat) into separate modules.",
+    "auto_balance uses local mutable list `asyncio_updates` defined AFTER `split()` calls reference it — works only because split() is invoked after definition; readability hazard.",
+    "wellness_scores hardcodes streak_days=5 inside the endpoint while UserProfile also stores streak_days — duplicate source of truth.",
+    "fitness/today is deterministic mock — clearly flagged in request as MOCKED."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_pocketbuddy_iter2.py (new)"
+  ],
+  "success_rate": {"backend": "100% (10/10 new tests)", "frontend": "100% on all 6 dynamic hotspots + tasks E2E"},
+  "test_credentials": "Demo user 'alex' is baked in; no auth required.",
+  "seed_data_creation": "Pytest creates ephemeral TEST_-prefixed tasks and cleans them up; one persisted UI task ('UI Test Task') from Playwright run remains in DB.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend test_pocketbuddy_iter2.py covers iter-2 endpoints; original test_pocketbuddy_api.py covers iter-1 regression. Playwright verified: data-testids daily-tab-tasks, task-list, task-row-*, task-detail-modal, task-progress-slider, task-start-btn, task-stop-btn, task-live-timer (incremented 0m -> 0m 2s), task-comment-input, task-session-list, task-close-btn, new-task-title, new-task-min, add-task-btn, income-input (prefilled 16000), auto-balance-btn (applied 25000 -> Savings cat auto-created at ₹5,000), forecast-value (₹886), last-night-hours (6h 48m — dynamic), burnout-marker (style left:30% — dynamic, not hardcoded 32%), fit-steps (8,860), fit-active (50), fit-sedentary (6.3h). Header shows 'Good morning, Alex' and streak '5' from /api/profile.",
+  "rca of the issue": "No bugs requiring RCA. Only minor rounding cosmetic in auto-balance: pool totals are rounded per category via round(total/len), which can drift by ±₹1 from income. Mitigation: assign rounding residual to the last entry in each pool, or use floor() for first N-1 and remainder for the last."
+}

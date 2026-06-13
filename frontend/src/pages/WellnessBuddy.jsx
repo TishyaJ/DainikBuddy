@@ -61,12 +61,24 @@ const Dashboard = () => {
 const Sleep = () => {
   const [data, setData] = useState([]);
   useEffect(() => { api.get("/sleep/weekly").then((r) => setData(r.data)); }, []);
+  const last = data[data.length - 1];
+  const avg = data.length ? data.reduce((s, d) => s + d.hours, 0) / data.length : 0;
+  const diffMin = last ? Math.round((last.hours - avg) * 60) : 0;
+  const formatHrs = (h) => `${Math.floor(h)}h ${Math.round((h - Math.floor(h)) * 60)}m`;
   return (
     <div className="mx-5 mt-4 space-y-3">
       <Card>
         <h3 className="font-display font-bold text-base">Last Night</h3>
-        <div className="font-display font-bold text-3xl mt-1">6h 30m</div>
-        <p className="text-xs text-slate-500">45 min less than usual</p>
+        <div className="font-display font-bold text-3xl mt-1" data-testid="last-night-hours">
+          {last ? formatHrs(last.hours) : "—"}
+        </div>
+        <p className="text-xs text-slate-500">
+          {last
+            ? diffMin === 0
+              ? "On par with your average"
+              : `${Math.abs(diffMin)} min ${diffMin > 0 ? "more" : "less"} than usual`
+            : "Log sleep to see trends"}
+        </p>
         <div className="h-28 mt-3" data-testid="sleep-chart">
           <ResponsiveContainer>
             <BarChart data={data}>
@@ -92,29 +104,39 @@ const Sleep = () => {
   );
 };
 
-const Burnout = () => (
-  <div className="mx-5 mt-4 space-y-3">
-    <Card>
-      <h3 className="font-display font-bold text-base">Burnout Risk</h3>
-      <div className="mt-3 h-3 rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-500 relative">
-        <div className="absolute -top-1 w-5 h-5 rounded-full border-4 border-white shadow bg-slate-900" style={{ left: "32%" }} data-testid="burnout-marker" />
-      </div>
-      <div className="flex justify-between text-[10px] mt-1 text-slate-500 font-semibold"><span>Low</span><span>Med</span><span>High</span></div>
-      <div className="mt-4 space-y-2">
-        {[6, 5, 7, 4, 6, 3, 5].map((h, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <span className="text-[10px] w-6 text-slate-500">D{i + 1}</span>
-            <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-              <div className="h-full bdy-bg" style={{ width: `${h * 12}%` }} />
+const Burnout = () => {
+  const [score, setScore] = useState(50);
+  const [sleeps, setSleeps] = useState([]);
+  useEffect(() => {
+    api.get("/wellness/scores").then((r) => setScore(r.data.burnout_score));
+    api.get("/sleep/weekly").then((r) => setSleeps(r.data));
+  }, []);
+  // marker = inverse of burnout_score (higher score = healthier = left side of gradient)
+  const markerLeft = `${Math.max(2, Math.min(96, 100 - score))}%`;
+  return (
+    <div className="mx-5 mt-4 space-y-3">
+      <Card>
+        <h3 className="font-display font-bold text-base">Burnout Risk</h3>
+        <div className="mt-3 h-3 rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-500 relative">
+          <div className="absolute -top-1 w-5 h-5 rounded-full border-4 border-white shadow bg-slate-900 transition-all" style={{ left: markerLeft }} data-testid="burnout-marker" />
+        </div>
+        <div className="flex justify-between text-[10px] mt-1 text-slate-500 font-semibold"><span>Low</span><span>Med</span><span>High</span></div>
+        <div className="mt-4 space-y-2">
+          {sleeps.map((s, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="text-[10px] w-8 text-slate-500">{s.day}</span>
+              <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full bdy-bg" style={{ width: `${Math.min(100, s.hours * 12)}%` }} />
+              </div>
+              <span className="text-[10px] text-slate-600">{s.hours}h</span>
             </div>
-            <span className="text-[10px] text-slate-600">{h}h</span>
-          </div>
-        ))}
-      </div>
-      <InsightCard icon={Sparkles} title="Recovery suggestion" text="Take a no-screen evening tonight. Read fiction for 30 min before bed." />
-    </Card>
-  </div>
-);
+          ))}
+        </div>
+        <InsightCard icon={Sparkles} title="Recovery suggestion" text={score < 50 ? "Burnout risk is elevated. Block tonight as no-screen and sleep 8h." : "You're tracking well. Keep your evening wind-down ritual consistent."} />
+      </Card>
+    </div>
+  );
+};
 
 const Stress = () => {
   const [data, setData] = useState([]);

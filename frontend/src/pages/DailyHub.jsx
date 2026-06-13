@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Header } from "../components/Header";
 import { SubTabs, Card, InsightCard } from "../components/SubTabs";
+import { Tasks } from "../components/Tasks";
 import { Smile, Frown, Meh, Heart, Zap, Mic, Camera, Plus, Target, Sparkles } from "lucide-react";
 import { api } from "../lib/api";
 import { BarChart, Bar, XAxis, ResponsiveContainer, Cell } from "recharts";
@@ -265,6 +266,7 @@ const Summary = () => {
 
 const TABS = [
   { key: "mood", label: "Mood", C: Mood },
+  { key: "tasks", label: "Tasks", C: Tasks },
   { key: "expense", label: "Expense", C: Expense },
   { key: "journal", label: "Journal", C: Journal },
   { key: "goals", label: "Goals", C: Goals },
@@ -273,10 +275,12 @@ const TABS = [
 
 export default function DailyHub() {
   const [tab, setTab] = useState("mood");
+  const [profile, setProfile] = useState({ name: "Alex" });
+  useEffect(() => { api.get("/profile").then((r) => setProfile(r.data)); }, []);
   const Active = TABS.find((t) => t.key === tab).C;
   return (
     <div className="flex-1 overflow-auto scroll-area pb-4">
-      <Header title="Good morning, Alex ☀️" subtitle="Here's your snapshot for today" />
+      <Header title={`Good morning, ${profile.name} ☀️`} subtitle="Here's your snapshot for today" />
       <Card className="mx-5 -mt-2 bdy-gradient text-white">
         <div className="flex items-center justify-between">
           <div>
