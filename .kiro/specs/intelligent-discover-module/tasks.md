@@ -6,8 +6,8 @@ Transform PocketBuddy's static Discover module into an AI-powered system using t
 
 ## Tasks
 
-- [ ] 1. Fix ObjectId serialization bug
-  - [ ] 1.1 Create `sanitize_mongo_doc` utility and fix `add_saved_place`
+- [x] 1. Fix ObjectId serialization bug
+  - [x] 1.1 Create `sanitize_mongo_doc` utility and fix `add_saved_place`
     - Add a `sanitize_mongo_doc(doc: dict) -> dict` helper function in `backend/server.py` (near the top utility section)
     - The function pops `_id` from the dict and returns it
     - Apply it in `add_saved_place` endpoint after `insert_one()` call
