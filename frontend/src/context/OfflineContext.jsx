@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import { offlineStore, syncOfflineQueue } from "../lib/offlineSync";
 
 const OfflineContext = createContext({
     isOnline: true,
@@ -45,12 +46,12 @@ export const OfflineProvider = ({ children }) => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Check pending sync count from localStorage
+    // Check pending sync count from IndexedDB
     useEffect(() => {
-        const checkPending = () => {
+        const checkPending = async () => {
             try {
-                const queue = JSON.parse(localStorage.getItem("pb_offline_queue") || "[]");
-                setPendingSync(queue.length);
+                const count = await offlineStore.getCount();
+                setPendingSync(count);
             } catch {
                 setPendingSync(0);
             }
@@ -65,42 +66,25 @@ export const OfflineProvider = ({ children }) => {
         if (syncStatus === "syncing") return;
 
         try {
-            const queue = JSON.parse(localStorage.getItem("pb_offline_queue") || "[]");
-            if (queue.length === 0) {
+            const count = await offlineStore.getCount();
+            if (count === 0) {
                 setSyncStatus("idle");
                 return;
             }
 
             setSyncStatus("syncing");
-            setPendingSync(queue.length);
+            setPendingSync(count);
 
-            // Try to dynamically import the offlineSync module
-            let syncModule;
-            try {
-                syncModule = await import("../lib/offlineSync");
-            } catch {
-                // offlineSync module not available yet — simulate sync
-                await new Promise((resolve) => setTimeout(resolve, 1500));
-                localStorage.setItem("pb_offline_queue", "[]");
-                setPendingSync(0);
-                setSyncStatus("success");
-
-                // Reset to idle after showing success
-                syncTimeoutRef.current = setTimeout(() => setSyncStatus("idle"), 3000);
-                return;
-            }
-
-            // Use the sync module if available
-            const result = await syncModule.syncOfflineQueue();
+            const result = await syncOfflineQueue();
 
             if (result?.conflicts?.length > 0) {
                 setConflicts(result.conflicts);
             }
 
-            localStorage.setItem("pb_offline_queue", JSON.stringify(result?.remaining || []));
             setPendingSync(result?.remaining?.length || 0);
             setSyncStatus("success");
 
+            // Reset to idle after showing success
             syncTimeoutRef.current = setTimeout(() => setSyncStatus("idle"), 3000);
         } catch (err) {
             console.error("Sync failed:", err);
@@ -108,17 +92,13 @@ export const OfflineProvider = ({ children }) => {
         }
     }, [syncStatus]);
 
-    const resolveConflict = useCallback((conflictId, resolution) => {
+    const resolveConflict = useCallback(async (conflictId, resolution) => {
         // resolution: "local" | "server"
-        setConflicts((prev) => prev.filter((c) => c.id !== conflictId));
-
-        // Persist resolution
         try {
-            const resolutions = JSON.parse(localStorage.getItem("pb_conflict_resolutions") || "[]");
-            resolutions.push({ conflictId, resolution, resolvedAt: new Date().toISOString() });
-            localStorage.setItem("pb_conflict_resolutions", JSON.stringify(resolutions));
+            await offlineStore.resolveConflict(conflictId, resolution);
+            setConflicts((prev) => prev.filter((c) => c.id !== conflictId));
         } catch {
-            // Silently fail
+            // Silently fail — conflict stays in list
         }
     }, []);
 

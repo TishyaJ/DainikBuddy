@@ -272,15 +272,15 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - **Property 6: Voice Transcript Length Cap** — Generate random existing text + transcript, verify combined ≤5000
     - **Validates: Requirements 2.3, 2.4, 2.5, 2.6**
 
-- [ ] 14. Offline Support and PWA Capabilities
-  - [ ] 14.1 Create service worker and PWA manifest
+- [x] 14. Offline Support and PWA Capabilities
+  - [x] 14.1 Create service worker and PWA manifest
     - Create service worker configuration (Workbox) to cache app shell (HTML, CSS, JS, icons)
     - Create `frontend/public/manifest.json` with icons (192×192, 512×512), theme color, display: "standalone"
     - Create `frontend/src/serviceWorkerRegistration.js` for SW registration
     - App must load offline within 3 seconds on subsequent visits
     - _Requirements: 7.1, 7.6_
 
-  - [ ] 14.2 Create frontend offline sync module
+  - [x] 14.2 Create frontend offline sync module
     - Create `frontend/src/lib/offlineSync.js` with IndexedDB storage (save, getAll, getCount, clear, sync)
     - Store mood, expenses, journal, sleep entries offline (max 500 entries)
     - Sync on reconnection within 30 seconds, retry up to 3 times (10s interval)
@@ -288,7 +288,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - Show warning at 500-entry capacity, block new entries until sync
     - _Requirements: 7.2, 7.3, 7.4, 7.8_
 
-  - [ ] 14.3 Create frontend offline UI components
+  - [x] 14.3 Create frontend offline UI components
     - Create `frontend/src/components/OfflineIndicator.jsx` for header offline status banner (show within 2s of connectivity change)
     - Create `frontend/src/components/SyncStatus.jsx` for sync progress indicator
     - Create `frontend/src/components/ConflictResolution.jsx` modal for resolving sync conflicts
@@ -301,7 +301,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - **Property 22: Sync Conflict Dual Preservation** — Generate conflicting records, verify both versions preserved with timestamps
     - **Validates: Requirements 7.2, 7.4, 7.8**
 
-- [ ] 15. Checkpoint - Ensure all tests pass
+- [x] 15. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 16. UI Component Integration and Data Input Flows

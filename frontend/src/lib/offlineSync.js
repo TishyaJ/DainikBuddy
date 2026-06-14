@@ -10,7 +10,7 @@ import { api } from "./api";
  * Validates: Requirements 7.2, 7.3, 7.4, 7.8
  */
 
-const DB_NAME = "pocketbuddy_offline";
+const DB_NAME = "pocketbuddy-offline";
 const DB_VERSION = 1;
 const ENTRIES_STORE = "entries";
 const CONFLICTS_STORE = "conflicts";
@@ -53,7 +53,7 @@ function openDB() {
                     autoIncrement: true,
                 });
                 entriesStore.createIndex("collection", "collection", { unique: false });
-                entriesStore.createIndex("savedAt", "savedAt", { unique: false });
+                entriesStore.createIndex("timestamp", "timestamp", { unique: false });
             }
 
             // Conflicts store: holds conflicting versions for user resolution
@@ -90,22 +90,27 @@ function generateLocalId() {
  *
  * @param {string} collection - One of "mood", "expenses", "journal", "sleep"
  * @param {object} entry - The data to store
- * @returns {Promise<{success: boolean, full?: boolean, count?: number, error?: string}>}
+ * @returns {Promise<{success: boolean, atCapacity?: boolean, count?: number, error?: string}>}
  */
 async function save(collection, entry) {
     if (!VALID_COLLECTIONS.includes(collection)) {
-        return { success: false, error: `Invalid collection: ${collection}` };
+        return { success: false, atCapacity: false, error: `Invalid collection: ${collection}` };
     }
 
     const database = await openDB();
     const count = await _getCountFromDB(database);
 
-    // Enforce 500-entry cap
+    // Enforce 500-entry cap — block new entries until sync
     if (count >= MAX_ENTRIES) {
-        return { success: false, full: true, count, error: "Offline storage is full (500 entries). Please sync before adding more." };
+        return {
+            success: false,
+            atCapacity: true,
+            count,
+            error: "Offline storage is full (500 entries). Please connect to sync before adding more.",
+        };
     }
 
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         const tx = database.transaction(ENTRIES_STORE, "readwrite");
         const store = tx.objectStore(ENTRIES_STORE);
 
@@ -113,7 +118,8 @@ async function save(collection, entry) {
             localId: generateLocalId(),
             collection,
             data: entry,
-            savedAt: new Date().toISOString(),
+            timestamp: new Date().toISOString(),
+            synced: false,
             source: "local",
         };
 
@@ -121,16 +127,16 @@ async function save(collection, entry) {
 
         request.onsuccess = () => {
             const newCount = count + 1;
-            const warning = newCount >= MAX_ENTRIES;
-            resolve({ success: true, full: warning, count: newCount, localId: record.localId });
+            const atCapacity = newCount >= MAX_ENTRIES;
+            resolve({ success: true, atCapacity, count: newCount, localId: record.localId });
         };
 
         request.onerror = (event) => {
-            resolve({ success: false, error: event.target.error?.message || "Failed to save entry" });
+            resolve({ success: false, atCapacity: false, error: event.target.error?.message || "Failed to save entry" });
         };
 
         tx.onerror = (event) => {
-            resolve({ success: false, error: event.target.error?.message || "Transaction failed" });
+            resolve({ success: false, atCapacity: false, error: event.target.error?.message || "Transaction failed" });
         };
     });
 }
@@ -207,13 +213,19 @@ async function clear(collection) {
         return new Promise((resolve) => {
             const tx = database.transaction(ENTRIES_STORE, "readwrite");
             const store = tx.objectStore(ENTRIES_STORE);
-            const request = store.clear();
 
-            request.onsuccess = () => {
-                resolve({ success: true, cleared: 0 });
+            // Count before clearing
+            const countReq = store.count();
+            countReq.onsuccess = () => {
+                const total = countReq.result || 0;
+                const clearReq = store.clear();
+                clearReq.onsuccess = () => resolve({ success: true, cleared: total });
+                clearReq.onerror = () => resolve({ success: false, cleared: 0 });
             };
-            request.onerror = () => {
-                resolve({ success: false, cleared: 0 });
+            countReq.onerror = () => {
+                const clearReq = store.clear();
+                clearReq.onsuccess = () => resolve({ success: true, cleared: 0 });
+                clearReq.onerror = () => resolve({ success: false, cleared: 0 });
             };
         });
     }
@@ -222,50 +234,22 @@ async function clear(collection) {
         return { success: false, cleared: 0, error: `Invalid collection: ${collection}` };
     }
 
-    // Clear entries for a specific collection
-    const entries = await getAll(collection);
-    if (entries.length === 0) {
-        return { success: true, cleared: 0 };
-    }
-
+    // Clear entries for a specific collection using a cursor on the index
     return new Promise((resolve) => {
         const tx = database.transaction(ENTRIES_STORE, "readwrite");
         const store = tx.objectStore(ENTRIES_STORE);
+        const index = store.index("collection");
+        const request = index.openCursor(IDBKeyRange.only(collection));
         let cleared = 0;
-        let remaining = entries.length;
 
-        entries.forEach((entry) => {
-            // Delete by the autoIncrement key — we need to find it via cursor
-            const index = store.index("collection");
-            const cursorRequest = index.openCursor(collection);
-
-            cursorRequest.onsuccess = (event) => {
-                const cursor = event.target.result;
-                if (cursor) {
-                    if (cursor.value.localId === entry.localId) {
-                        cursor.delete();
-                        cleared++;
-                    }
-                    remaining--;
-                    if (remaining <= 0) {
-                        resolve({ success: true, cleared });
-                    }
-                    cursor.continue();
-                } else {
-                    remaining--;
-                    if (remaining <= 0) {
-                        resolve({ success: true, cleared });
-                    }
-                }
-            };
-
-            cursorRequest.onerror = () => {
-                remaining--;
-                if (remaining <= 0) {
-                    resolve({ success: true, cleared });
-                }
-            };
-        });
+        request.onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (cursor) {
+                cursor.delete();
+                cleared++;
+                cursor.continue();
+            }
+        };
 
         tx.oncomplete = () => {
             resolve({ success: true, cleared });
@@ -383,6 +367,7 @@ async function _performSync(database, attempt) {
 
 /**
  * Store a conflict for user resolution.
+ * Preserves both local and server versions with timestamps and source.
  */
 async function _storeConflict(database, localEntry, serverResponse) {
     return new Promise((resolve) => {
@@ -392,15 +377,19 @@ async function _storeConflict(database, localEntry, serverResponse) {
         const conflict = {
             localId: localEntry.localId,
             collection: localEntry.collection,
-            localVersion: localEntry.data,
-            serverVersion: serverResponse?.serverVersion || serverResponse?.data || serverResponse,
-            localTimestamp: localEntry.savedAt,
-            serverTimestamp: serverResponse?.updatedAt || serverResponse?.timestamp || new Date().toISOString(),
-            source: {
-                local: "local",
-                server: "server",
+            localVersion: {
+                data: localEntry.data,
+                timestamp: localEntry.timestamp,
+                source: "local",
             },
+            serverVersion: {
+                data: serverResponse?.serverVersion || serverResponse?.data || serverResponse,
+                timestamp: serverResponse?.updatedAt || serverResponse?.timestamp || new Date().toISOString(),
+                source: "server",
+            },
+            createdAt: new Date().toISOString(),
             resolvedAt: null,
+            resolution: null,
         };
 
         const request = store.add(conflict);
@@ -487,7 +476,7 @@ async function resolveConflict(conflictId, choice) {
             if (choice === "local") {
                 const endpoint = COLLECTION_ENDPOINTS[conflict.collection];
                 if (endpoint) {
-                    api.post(endpoint, conflict.localVersion).catch(() => {
+                    api.post(endpoint, conflict.localVersion.data).catch(() => {
                         // If re-post fails, it'll be picked up in next sync
                     });
                 }
@@ -550,7 +539,17 @@ function _handleOffline() {
 }
 
 /**
- * Check if offline storage is at capacity.
+ * Check if offline storage is at capacity (500 entries).
+ *
+ * @returns {Promise<boolean>}
+ */
+async function isAtCapacity() {
+    const count = await getCount();
+    return count >= MAX_ENTRIES;
+}
+
+/**
+ * Get detailed capacity status information.
  *
  * @returns {Promise<{atCapacity: boolean, count: number, max: number}>}
  */
@@ -570,12 +569,47 @@ export const offlineStore = {
     getCount,
     clear,
     sync,
+    isAtCapacity,
     getConflicts,
     resolveConflict,
     getCapacityStatus,
     registerConnectivityListeners,
     unregisterConnectivityListeners,
 };
+
+/**
+ * Convenience function for use by OfflineContext.
+ * Syncs all offline entries and returns a result compatible with the context provider.
+ *
+ * @returns {Promise<{conflicts: Array, remaining: Array}>}
+ */
+export async function syncOfflineQueue() {
+    const result = await sync();
+    const pendingConflicts = await getConflicts();
+
+    // Get remaining unsynced entries
+    const remainingEntries = [];
+    for (const collection of VALID_COLLECTIONS) {
+        const entries = await getAll(collection);
+        remainingEntries.push(...entries);
+    }
+
+    return {
+        success: result.success,
+        synced: result.synced,
+        conflicts: pendingConflicts.map((c) => ({
+            id: c.id,
+            type: c.collection,
+            localValue: JSON.stringify(c.localVersion?.data || c.localVersion),
+            serverValue: JSON.stringify(c.serverVersion?.data || c.serverVersion),
+            localTimestamp: c.localVersion?.timestamp,
+            serverTimestamp: c.serverVersion?.timestamp,
+            local: { summary: `Local ${c.collection} entry` },
+            server: { summary: `Server ${c.collection} entry` },
+        })),
+        remaining: remainingEntries,
+    };
+}
 
 // Export constants for testing
 export const OFFLINE_CONSTANTS = {

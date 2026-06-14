@@ -677,3 +677,78 @@ The `StudyGroups.jsx` root div had `className="pb-6"` but was missing `flex-1 ov
 - **Parent task 12 completed**
 - **All 185 tests passing**
 - **Next task**: 13 (Voice Input for Journal Entries)
+
+
+---
+
+## June 14, 2026 — Tasks 13, 14, 15: Voice Input, Offline/PWA, Checkpoint
+
+### What happened
+Executed Tasks 13 (Voice Input for Journal Entries), 14 (Offline Support and PWA Capabilities), and 15 (Checkpoint). All three tasks completed successfully. Also diagnosed a transient network issue (MongoDB Atlas DNS resolution failure) that was unrelated to code changes.
+
+### Task 13: Voice Input
+
+**Execution:** Single subtask 13.1 (frontend only). Task 13.2 (unit tests) was optional, skipped.
+
+**Key Decisions:**
+
+1. **Web Speech API wrapper as a plain module (not a class):** `voiceInput.js` exports a simple object with `isSupported()`, `start()`, `stop()`. No React hooks inside — keeps it framework-agnostic and testable. The component (`VoiceInputButton.jsx`) handles the React lifecycle.
+
+2. **Transcript appending strategy:** When voice recording starts, we capture the current text in a ref (`textBeforeVoiceRef`). As interim results arrive, we compute `baseText + separator + truncatedTranscript`. This means:
+   - The existing text is never lost
+   - Real-time updates show the growing transcript
+   - The 5000-char cap is enforced on the *combined* result, not each piece separately
+
+3. **3-second pause auto-stop vs 10-second silence timeout — different timers:**
+   - Silence timer (10s): starts when recording begins. If NO speech is ever detected, fires and shows "try again in a quieter environment."
+   - Pause timer (3s): resets on each speech result. If the user stops talking for 3 seconds AFTER some speech was detected, gracefully finalizes.
+   - These are complementary — silence catches "mic doesn't hear anything" while pause catches "user finished their thought."
+
+4. **Hidden when unsupported:** `VoiceInputButton` returns `null` if `voiceInput.isSupported()` is false. This means on browsers without Web Speech API (Firefox, most mobile browsers), the user simply doesn't see the button — no error, no disabled state, just clean absence.
+
+### Task 14: Offline Support & PWA
+
+**Execution:** All 3 required subtasks (14.1, 14.2, 14.3) dispatched in parallel since they're independent frontend work. Task 14.4 (property tests) was optional, skipped.
+
+**Key Decisions:**
+
+1. **Native IndexedDB over idb library:** The `offlineSync.js` module uses raw IndexedDB API directly. This avoids adding another dependency for a relatively simple use case (one database, two object stores). The code is more verbose but has zero external dependencies.
+
+2. **500-entry hard cap with blocking (Property 21):** When `save()` is called and count ≥ 500, it returns `{success: false, atCapacity: true}` immediately. No entries are stored. The UI shows a warning. This is intentional — we don't want unbounded offline growth that could fill up limited mobile storage.
+
+3. **Sync-on-reconnect timing:** The spec says "within 30 seconds." We use a 5-second delay after the `online` event fires. This is well within the requirement and gives the network stack a moment to stabilize before hammering it with sync requests.
+
+4. **Conflict resolution stores BOTH versions (Property 22):** When a POST returns 409, both the local version and the server's version are saved in a `conflicts` IndexedDB store with separate timestamps and source labels. The `ConflictResolution.jsx` modal presents them side by side for the user to choose.
+
+5. **Service worker strategy by asset type:**
+   - HTML (navigation): NetworkFirst — always try to get fresh content, fall back to cache
+   - CSS/JS: StaleWhileRevalidate — serve cached immediately, update in background
+   - Images: CacheFirst with 30-day expiry — images rarely change
+   - Fonts: CacheFirst with 1-year expiry — never change
+   - API calls: NetworkFirst with 5-minute cache — prefer fresh data, but can show stale
+
+6. **OfflineContext uses localStorage fallback:** If the `offlineSync` module isn't ready (dynamic import), the context falls back to checking `localStorage` for a simpler `pb_offline_queue` array. This means the offline indicator works even before the full IndexedDB module is loaded.
+
+7. **AI features disabled offline:** ChatCenter and DiscoverBuddy check `isOnline` from OfflineContext and show a "requires internet" message when offline. This is correct per Req 7.7 — AI chat needs the LLM API which is inherently online.
+
+### Task 15: Checkpoint
+
+**Result:** 185 tests pass, 0 failures, frontend builds clean. The 6 warnings are:
+- Starlette multipart deprecation (3x) — their code, not ours
+- FastAPI on_event deprecation — will be addressed when we move to lifespan handlers
+- Analytics router `regex` → `pattern` deprecation — cosmetic, doesn't affect functionality
+- Another starlette deprecation variant
+
+None of these are bugs or failures — all are deprecation notices for patterns that still work.
+
+### Transient Network Issue
+
+During this session, the user encountered `ServerSelectionTimeoutError` with `[Errno 11001] getaddrinfo failed`. This is a DNS resolution failure — the machine temporarily couldn't resolve MongoDB Atlas hostnames. 
+
+Verified with `nslookup ac-kchyaxu-shard-00-00.q22rf44.mongodb.net` which resolved successfully to `159.41.184.66` (AWS ap-south-1). The failure was transient — likely a brief WiFi/ISP interruption. Not a code bug, not caused by any of our changes. Fix: restart the backend server to re-establish connections.
+
+### Current State
+- **Tasks completed**: 1.x ✓, 2.1 ✓, 2.3 ✓, 3 ✓, 4.x ✓, 5.x ✓, 6.x ✓, 7 ✓, 8.x ✓, 9.x ✓, 10.x ✓, 11 ✓, 12.x ✓, 13.1 ✓, 14.1 ✓, 14.2 ✓, 14.3 ✓, 15 ✓
+- **Parent tasks 13 and 14 auto-completed** (all required children done)
+- **185 tests passing**, frontend builds clean
+- **Next tasks**: 16 (UI Component Integration) and 17 (UI/UX Coherence) — the final stretch

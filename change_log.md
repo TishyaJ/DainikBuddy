@@ -443,3 +443,90 @@ Implemented the complete Enhanced Data Analytics and Trend Detection system (Tas
 
 ### Summary
 Implemented the complete Daily Insights and Life-Balance Scoring system (Task 12, subtasks 12.1 and 12.3). Backend provides 5-domain radar scoring with partial data handling, exactly 3 daily insight cards with midnight regeneration, Tomorrow's Plan (after 8 PM) with ascending domain ordering, and plan completion with 25 XP award. Frontend renders radar chart via recharts, insight cards, plan checkboxes with celebration animation, and per-section error handling with retry buttons. Fixed 2 bugs discovered during testing. Task 12.2 (property tests) optional, skipped. Parent task 12 completed.
+
+
+---
+
+## Session: June 14, 2026 — Tasks 13, 14, 15: Voice Input, Offline/PWA, Checkpoint
+
+### Files Created (Task 13 — Voice Input)
+| File | Description |
+|------|-------------|
+| `frontend/src/lib/voiceInput.js` | Voice input module wrapping Web Speech API — `isSupported()`, `start(onTranscript, onError, onEnd)`, `stop()`, 3-second pause auto-stop, 10-second silence timeout ("try again in a quieter environment"), microphone permission denial handling ("microphone access is required") |
+| `frontend/src/components/VoiceInputButton.jsx` | Mic toggle button — pulsing red border animation via framer-motion when recording, MicOff icon when active, hidden if Web Speech API unsupported, accepts onTranscript/onError/onEnd/onStart/disabled props |
+
+### Files Created (Task 14 — Offline Support & PWA)
+| File | Description |
+|------|-------------|
+| `frontend/src/lib/offlineSync.js` | IndexedDB offline sync module — `save(collection, entry)`, `getAll(collection)`, `getCount()`, `clear(collection)`, `sync()`, `isAtCapacity()`, `getConflicts()`, `resolveConflict(id, choice)`; 500-entry cap (Property 21); sync on reconnection within 30s with 3 retries at 10s intervals; conflict preservation with both versions + timestamps (Property 22) |
+| `frontend/src/context/OfflineContext.jsx` | OfflineProvider — `isOnline`, `pendingSync`, `conflicts`, `syncStatus`, `triggerSync()`, `resolveConflict()`, `dismissConflicts()`; listens for online/offline events; auto-syncs on reconnection; polls IndexedDB pending count every 3s |
+| `frontend/src/components/OfflineIndicator.jsx` | Amber banner with WifiOff icon — "You're offline. Data will sync when connected." with pending entry count; framer-motion slide animation; shows within 2s of connectivity change |
+| `frontend/src/components/SyncStatus.jsx` | Floating pill at bottom — shows "Syncing N entries...", "All synced ✓", or "Sync failed" with retry button; framer-motion slide-up animation |
+| `frontend/src/components/ConflictResolution.jsx` | Full-screen modal — lists conflicts with Local vs Server versions (timestamps, source labels), "Keep Local" and "Keep Server" buttons per conflict; dismiss all button |
+| `frontend/public/manifest.json` | PWA manifest — `display: "standalone"`, `theme_color: "#A855F7"`, icons (192×192, 512×512 SVG), categories, orientation, scope |
+| `frontend/public/service-worker.js` | Workbox-based service worker (CDN import) — NetworkFirst for navigation/API, StaleWhileRevalidate for CSS/JS, CacheFirst for images (30-day) and fonts (1-year), skipWaiting + clientsClaim |
+| `frontend/src/serviceWorkerRegistration.js` | SW registration/unregistration logic — registers on production load, checks validity on localhost, onUpdate/onSuccess callbacks |
+| `frontend/public/icons/icon-192x192.svg` | Placeholder SVG icon (192×192) with purple branding |
+| `frontend/public/icons/icon-512x512.svg` | Placeholder SVG icon (512×512) with purple branding |
+
+### Files Modified (Tasks 13-14)
+| File | Changes |
+|------|---------|
+| `frontend/src/pages/DailyHub.jsx` | Replaced static Voice button in Journal component with `VoiceInputButton`; added `handleVoiceTranscript`, `handleVoiceError`, `handleVoiceEnd`, `handleVoiceStart` callbacks; added 5000-char cap enforcement with `textBeforeVoiceRef`; added character counter, "● Recording..." indicator, and voice error banner below textarea |
+| `frontend/src/index.js` | Added `import * as serviceWorkerRegistration` and `serviceWorkerRegistration.register()` call with onUpdate/onSuccess callbacks |
+| `frontend/src/App.js` | Added `OfflineProvider` to context provider tree; imported OfflineIndicator + SyncStatus + ConflictResolution and rendered them in Shell |
+| `frontend/src/pages/ChatCenter.jsx` | Added offline check — shows "Chat requires internet connectivity" message when `isOnline` is false |
+| `frontend/src/pages/DiscoverBuddy.jsx` | Added offline check — shows "Discover features require internet" message when `isOnline` is false |
+| `frontend/public/index.html` | Added `<link rel="manifest" href="/manifest.json">`, apple-touch-icon, updated theme-color meta to `#A855F7` |
+
+### Task 15: Checkpoint Results
+- **185 tests pass** in 25.48 seconds
+- 6 warnings (starlette deprecation + analytics regex deprecation — not our bugs)
+- 0 failures, 0 errors
+- Frontend `craco build` passes cleanly
+
+### API Verification (Backend health checks — all endpoints responding)
+| # | Endpoint | Status |
+|---|----------|--------|
+| 1 | `GET /api/life-balance` | ✓ 200 — 5 domains, overall score |
+| 2 | `GET /api/insights/daily` | ✓ 200 — 3 insight cards, date cached |
+| 3 | `GET /api/analytics/anomalies` | ✓ 200 |
+| 4 | `GET /api/notifications` | ✓ 200 |
+| 5 | `GET /api/social/groups` | ✓ 200 |
+| 6 | `GET /api/gamification/status` | ✓ 200 |
+
+### File Existence Verification
+- All Task 13 files: ✓ (voiceInput.js, VoiceInputButton.jsx)
+- All Task 14 files: ✓ (offlineSync.js, OfflineContext.jsx, OfflineIndicator.jsx, SyncStatus.jsx, ConflictResolution.jsx, manifest.json, service-worker.js, serviceWorkerRegistration.js, icons)
+- PWA manifest: name="PocketBuddy - AI Finance Companion", display="standalone", theme="#A855F7", 2 icons
+- Service worker: Workbox-based with 5 caching strategies
+
+### Transient Network Issue (Not a code bug)
+During testing, the backend threw `pymongo.errors.ServerSelectionTimeoutError` with `[Errno 11001] getaddrinfo failed`. This was a **transient DNS resolution failure** on the user's network — MongoDB Atlas hostnames couldn't be resolved temporarily. Verified with `nslookup` that DNS resolved correctly afterward. Fix: restart the backend server (Motor reconnects automatically).
+
+### Summary
+Implemented Tasks 13 (Voice Input), 14 (Offline/PWA), and 15 (Checkpoint). Voice input uses Web Speech API with 3s pause auto-stop and 10s silence timeout, integrated into Journal tab. PWA has full Workbox service worker caching app shell, manifest with standalone display, and icons. Offline sync uses IndexedDB with 500-entry cap, 3 retries on reconnection, and conflict resolution preserving both versions. All 185 backend tests pass, frontend builds clean, all API endpoints responding correctly.
+
+
+---
+
+## Session: June 14, 2026 — ESLint useEffect Dependency Fix
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `frontend/src/components/Exercise.jsx` | Added `useCallback` import; wrapped both `load` functions (in `ExerciseDetail` and `ExerciseTracker`) with `useCallback`; updated `useEffect` dependency arrays to reference `load` instead of `exercise.id` / empty array; removed `eslint-disable-next-line` comment |
+| `frontend/src/components/Tasks.jsx` | Added `useCallback` import; wrapped both `load` functions (in `TaskDetail` and `Tasks`) with `useCallback`; updated `useEffect` dependency arrays to reference `load` instead of `task.id` / empty array |
+| `change_log.md` | Added this session's log entry |
+
+### Root Cause
+Both components defined async `load` functions inside the component body and called them from `useEffect`, but didn't include `load` in the dependency array. ESLint's `react-hooks/exhaustive-deps` rule flagged this because the effect references `load` but would never re-run if `load` changed.
+
+### Fix
+Wrapped `load` with `useCallback` (memoized on the relevant dependency — `exercise.id`, `task.id`, or `[]`), then included `load` in the `useEffect` dependency array. This satisfies the linter without causing infinite re-render loops.
+
+### Verification
+- `craco build` — "Compiled successfully." with 0 warnings, 0 errors
+
+### Summary
+Fixed 2 ESLint `react-hooks/exhaustive-deps` warnings in Exercise.jsx and Tasks.jsx by properly memoizing `load` functions with `useCallback` and including them in `useEffect` dependency arrays. Clean build confirmed.

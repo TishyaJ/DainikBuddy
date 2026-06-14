@@ -1,16 +1,16 @@
 {
     "short_name": "PocketBuddy",
-    "name": "PocketBuddy",
+    "name": "PocketBuddy - AI Finance Companion",
     "icons": [
         {
-            "src": "icons/icon-192x192.png",
-            "type": "image/png",
+            "src": "icons/icon-192x192.svg",
+            "type": "image/svg+xml",
             "sizes": "192x192",
             "purpose": "any maskable"
         },
         {
-            "src": "icons/icon-512x512.png",
-            "type": "image/png",
+            "src": "icons/icon-512x512.svg",
+            "type": "image/svg+xml",
             "sizes": "512x512",
             "purpose": "any maskable"
         }
@@ -21,5 +21,10 @@
     "background_color": "#1a1a2e",
     "orientation": "portrait",
     "scope": "/",
-    "description": "Your AI-powered personal finance companion"
+    "description": "Your AI-powered personal finance companion",
+    "categories": [
+        "finance",
+        "lifestyle"
+    ],
+    "prefer_related_applications": false
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { Card, InsightCard } from "./SubTabs";
 import { Plus, Play, Pause, Trash2, X, MessageSquare, Clock, CheckCircle2, Sparkles } from "lucide-react";
@@ -17,14 +17,14 @@ const TaskDetail = ({ task, onClose, onChanged }) => {
   const [tick, setTick] = useState(0);
   const timerRef = useRef(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const { data } = await api.get(`/tasks/${task.id}/sessions`);
     setSessions(data.sessions);
     setTotalSec(data.total_seconds);
     setActive(data.active);
-  };
+  }, [task.id]);
 
-  useEffect(() => { load(); }, [task.id]);
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     clearInterval(timerRef.current);
@@ -160,8 +160,8 @@ export const Tasks = () => {
   const [newTitle, setNewTitle] = useState("");
   const [newMin, setNewMin] = useState("");
 
-  const load = async () => setTasks((await api.get("/tasks")).data);
-  useEffect(() => { load(); }, []);
+  const load = useCallback(async () => setTasks((await api.get("/tasks")).data), []);
+  useEffect(() => { load(); }, [load]);
 
   const add = async () => {
     if (!newTitle.trim()) return;

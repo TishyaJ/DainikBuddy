@@ -59,6 +59,13 @@
     "tailwind-merge": "3.2.0",
     "tailwindcss-animate": "1.0.7",
     "vaul": "1.1.2",
+    "workbox-cacheable-response": "^7.4.1",
+    "workbox-core": "^7.4.1",
+    "workbox-expiration": "^7.4.1",
+    "workbox-navigation-preload": "^7.4.1",
+    "workbox-precaching": "^7.4.1",
+    "workbox-routing": "^7.4.1",
+    "workbox-strategies": "^7.4.1",
     "zod": "3.24.4"
   },
   "scripts": {
@@ -92,7 +99,8 @@
     "eslint-plugin-react-hooks": "5.2.0",
     "globals": "15.15.0",
     "postcss": "8.4.49",
-    "tailwindcss": "3.4.17"
+    "tailwindcss": "3.4.17",
+    "workbox-webpack-plugin": "^7.4.1"
   },
   "overrides": {
     "postcss": "8.4.49",
