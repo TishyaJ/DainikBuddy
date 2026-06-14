@@ -486,7 +486,9 @@ async def journal_weekly(user_id: str = Depends(get_current_user)):
 # ============ GOALS ============
 @api_router.get("/goals")
 async def get_goals(user_id: str = Depends(get_current_user)):
-    return await list_docs("goals", user_id=user_id)
+    return await db.goals.find(
+        {"user_id": user_id, "status": {"$ne": "done"}}, {"_id": 0}
+    ).to_list(200)
 
 
 @api_router.post("/goals")
@@ -498,9 +500,61 @@ async def create_goal(g: Goal, user_id: str = Depends(get_current_user)):
 
 @api_router.patch("/goals/{goal_id}")
 async def update_goal(goal_id: str, payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
+    payload.pop("id", None)
+    payload.pop("user_id", None)
+    if "status" in payload:
+        payload["updated_at"] = now_iso()
     await db.goals.update_one({"id": goal_id, "user_id": user_id}, {"$set": payload})
     doc = await db.goals.find_one({"id": goal_id}, {"_id": 0})
     return doc
+
+
+@api_router.delete("/goals/{goal_id}")
+async def delete_goal(goal_id: str, user_id: str = Depends(get_current_user)):
+    res = await db.goals.delete_one({"id": goal_id, "user_id": user_id})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Goal not found")
+    return {"deleted": res.deleted_count}
+
+
+# ============ HISTORY ============
+@api_router.get("/history")
+async def get_history(user_id: str = Depends(get_current_user), range: str = "all"):
+    """Get archived tasks and done goals, sorted by completion date."""
+    # Get archived tasks
+    tasks = await db.tasks.find(
+        {"user_id": user_id, "status": "archived"}, {"_id": 0}
+    ).to_list(200)
+    # Get done goals
+    goals = await db.goals.find(
+        {"user_id": user_id, "status": "done"}, {"_id": 0}
+    ).to_list(200)
+    # Combine and sort by completion/update date descending
+    items = []
+    for t in tasks:
+        items.append({
+            "type": "task",
+            "title": t["title"],
+            "completed_at": t.get("updated_at", t.get("completed_at", t["created_at"])),
+            "progress": t.get("progress", 100),
+        })
+    for g in goals:
+        items.append({
+            "type": "goal",
+            "title": g["title"],
+            "completed_at": g.get("updated_at", g["created_at"]),
+            "progress": 100,
+        })
+    items.sort(key=lambda x: x["completed_at"], reverse=True)
+    # Apply time filter
+    if range != "all":
+        try:
+            days = int(range.replace("d", ""))
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+            items = [i for i in items if i["completed_at"] >= cutoff]
+        except (ValueError, TypeError):
+            pass
+    return items
 
 
 # ============ BUDGET ============
@@ -1169,7 +1223,9 @@ async def onboard(payload: Dict[str, Any], user_id: str = Depends(get_current_us
 # ============ TASKS ============
 @api_router.get("/tasks")
 async def get_tasks(user_id: str = Depends(get_current_user)):
-    return await db.tasks.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return await db.tasks.find(
+        {"user_id": user_id, "status": {"$ne": "archived"}}, {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
 
 
 @api_router.post("/tasks")
@@ -1195,6 +1251,11 @@ async def update_task(task_id: str, payload: Dict[str, Any], user_id: str = Depe
         else:
             payload["status"] = "active"
             payload["completed_at"] = None
+    if "status" in payload:
+        if payload["status"] == "archived":
+            payload["updated_at"] = now_iso()
+            if not payload.get("completed_at"):
+                payload["completed_at"] = now_iso()
     await db.tasks.update_one({"id": task_id, "user_id": user_id}, {"$set": payload})
     return await db.tasks.find_one({"id": task_id}, {"_id": 0})
 

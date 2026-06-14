@@ -34,6 +34,7 @@ export const ConflictResolution = () => {
                             <button
                                 onClick={dismissConflicts}
                                 data-testid="conflict-dismiss-btn"
+                                aria-label="Dismiss conflicts"
                                 className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200"
                             >
                                 <X className="w-4 h-4" />
@@ -95,6 +96,7 @@ export const ConflictResolution = () => {
                                         <button
                                             onClick={() => resolveConflict(conflict.id, "local")}
                                             data-testid={`conflict-keep-local-${conflict.id}`}
+                                            aria-label="Keep local version"
                                             className="flex-1 text-xs font-semibold py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition"
                                         >
                                             Keep Local
@@ -102,6 +104,7 @@ export const ConflictResolution = () => {
                                         <button
                                             onClick={() => resolveConflict(conflict.id, "server")}
                                             data-testid={`conflict-keep-server-${conflict.id}`}
+                                            aria-label="Keep server version"
                                             className="flex-1 text-xs font-semibold py-2 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition"
                                         >
                                             Keep Server

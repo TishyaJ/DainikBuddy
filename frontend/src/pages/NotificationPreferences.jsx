@@ -51,6 +51,7 @@ const NotificationPreferences = () => {
                     <button
                         data-testid="preferences-back"
                         onClick={() => nav(-1)}
+                        aria-label="Go back to notifications"
                         className="w-9 h-9 rounded-full flex items-center justify-center bg-slate-100 text-slate-700"
                     >
                         <ArrowLeft className="w-4 h-4" />

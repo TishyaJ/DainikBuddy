@@ -95,6 +95,7 @@ const ForgotPasswordPage = () => {
                                     className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl"
                                     disabled={isSubmitting}
                                     data-testid="forgot-password-submit-button"
+                                    aria-label="Send password reset link"
                                 >
                                     {isSubmitting ? (
                                         <>

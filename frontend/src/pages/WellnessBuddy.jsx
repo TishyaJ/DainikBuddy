@@ -4,6 +4,7 @@ import { SubTabs, Card, InsightCard } from "../components/SubTabs";
 import { Moon, Brain, Activity, Calendar, ClipboardList, Timer, Users, Heart, Phone, Sparkles, Play, Pause, Check, Save } from "lucide-react";
 import { api } from "../lib/api";
 import { BarChart, Bar, XAxis, ResponsiveContainer, Cell } from "recharts";
+import PageTransition from "../components/PageTransition";
 
 const ScoreRing = ({ score, label }) => {
   const r = 30, c = 2 * Math.PI * r;
@@ -49,6 +50,7 @@ const Dashboard = ({ onNavigate }) => {
           {actions.map((a, idx) => (
             <button key={idx} data-testid={`wellness-action-${idx}`}
               onClick={() => onNavigate(a.target)}
+              aria-label={`${a.t} - ${a.s}`}
               className="w-full flex items-center gap-3 p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition">
               <div className="w-9 h-9 rounded-xl bdy-soft flex items-center justify-center"><a.i className="w-4 h-4 bdy-text" /></div>
               <div className="flex-1 text-left">
@@ -141,6 +143,7 @@ const Sleep = () => {
               onChange={(e) => setSleepForm(f => ({ ...f, hours: e.target.value }))}
               className="w-full mt-1 p-2 rounded-xl bg-slate-50 border border-slate-200 text-sm outline-none"
               data-testid="sleep-hours-input"
+              aria-label="Enter hours slept"
             />
           </div>
           <div>
@@ -156,6 +159,7 @@ const Sleep = () => {
             </div>
           </div>
           <button onClick={handleSaveSleep} data-testid="save-sleep-btn"
+            aria-label="Save sleep entry"
             className="w-full py-2 rounded-xl bdy-bg text-white text-sm font-semibold flex items-center justify-center gap-2 active:scale-95">
             {sleepSaved ? <><Check className="w-4 h-4" /> Saved!</> : <><Save className="w-4 h-4" /> Save Sleep Entry</>}
           </button>
@@ -367,6 +371,7 @@ const CheckIns = () => {
               {options.map((o, j) => (
                 <button key={j} data-testid={`phq-${i}-${j}`}
                   onClick={() => handleAnswer(i, j)}
+                  aria-label={`${o} for question ${i + 1}`}
                   className={`py-1.5 rounded-lg text-[11px] font-semibold transition ${answers[i] === j ? "bdy-bg text-white" : "bg-slate-50 hover:bdy-soft"}`}>
                   {o}
                 </button>
@@ -378,6 +383,7 @@ const CheckIns = () => {
           onClick={handleSubmitPHQ2}
           disabled={!canSubmit || submitting}
           data-testid="phq2-submit"
+          aria-label="Submit PHQ-2 check-in"
           className={`w-full mt-4 py-2.5 rounded-xl text-sm font-semibold transition ${canSubmit ? "bdy-bg text-white active:scale-95" : "bg-slate-100 text-slate-400 cursor-not-allowed"}`}>
           {submitting ? "Submitting..." : "Submit Check-In"}
         </button>
@@ -393,6 +399,7 @@ const CheckIns = () => {
           rows={3}
           value={reflection}
           onChange={(e) => setReflection(e.target.value)}
+          aria-label="Write your daily reflection"
           className="w-full mt-2 bg-slate-50 rounded-xl p-2 text-sm border border-slate-200 outline-none"
           placeholder="I'm proud that..."
         />
@@ -400,6 +407,7 @@ const CheckIns = () => {
           onClick={handleSaveReflection}
           disabled={!reflection.trim()}
           data-testid="save-reflection-btn"
+          aria-label="Save daily reflection"
           className={`w-full mt-2 py-2 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition ${reflection.trim() ? "bdy-bg text-white active:scale-95" : "bg-slate-100 text-slate-400 cursor-not-allowed"}`}>
           {reflectionSaved ? <><Check className="w-4 h-4" /> Saved!</> : <><Save className="w-4 h-4" /> Save Reflection</>}
         </button>
@@ -437,6 +445,7 @@ const Focus = () => {
           <div className="text-xs text-slate-500 font-semibold">FOCUS · POMODORO</div>
           <div className="font-display font-bold text-6xl mt-2 bdy-text" data-testid="pomodoro-time">{mm}:{ss}</div>
           <button onClick={() => setRunning(!running)} data-testid="pomodoro-toggle"
+            aria-label={running ? "Pause focus timer" : "Start focus timer"}
             className="mt-3 bdy-bg text-white font-semibold px-6 py-2.5 rounded-full flex items-center gap-2 mx-auto active:scale-95">
             {running ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />} {running ? "Pause" : "Start"}
           </button>
@@ -528,7 +537,7 @@ const Support = () => (
       <h3 className="font-display font-bold text-base">Guided Practices</h3>
       <div className="mt-3 space-y-2">
         {[{ n: "Box Breathing", d: "3 min" }, { n: "Body Scan", d: "10 min" }, { n: "Sleep Wind-down", d: "8 min" }, { n: "Gratitude Pause", d: "2 min" }].map((p, i) => (
-          <button key={i} data-testid={`practice-${i}`} className="w-full flex items-center gap-3 p-3 rounded-xl bg-slate-50">
+          <button key={i} data-testid={`practice-${i}`} aria-label={`${p.n}, ${p.d}`} className="w-full flex items-center gap-3 p-3 rounded-xl bg-slate-50">
             <div className="w-9 h-9 rounded-xl bdy-soft flex items-center justify-center"><Heart className="w-4 h-4 bdy-text" /></div>
             <div className="flex-1 text-left">
               <div className="text-sm font-semibold">{p.n}</div>
@@ -574,10 +583,10 @@ export default function WellnessBuddy() {
   };
 
   return (
-    <div className="flex-1 overflow-auto scroll-area pb-4">
+    <PageTransition className="flex-1 overflow-auto scroll-area pb-4">
       <Header title="Wellness Buddy ☁️" subtitle="Mind. Body. Balance." gradient />
       <SubTabs tabs={TABS} active={tab} onChange={setTab} testid="well-tab" />
       {renderActive()}
-    </div>
+    </PageTransition>
   );
 }

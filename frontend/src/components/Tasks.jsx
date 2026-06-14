@@ -64,6 +64,12 @@ const TaskDetail = ({ task, onClose, onChanged }) => {
     onClose();
   };
 
+  const archiveTask = async () => {
+    await api.patch(`/tasks/${task.id}`, { status: "archived" });
+    onChanged?.();
+    onClose();
+  };
+
   return (
     <div
       className="absolute inset-0 z-50 bg-black/40 flex items-end"
@@ -101,6 +107,28 @@ const TaskDetail = ({ task, onClose, onChanged }) => {
             data-testid="task-progress-slider"
           />
         </div>
+
+        {/* Archive/Delete actions when task is 100% */}
+        {progress >= 100 && (
+          <div className="mt-3 flex gap-2" data-testid="task-completion-actions">
+            <button
+              onClick={archiveTask}
+              data-testid="task-archive-btn"
+              aria-label="Archive this completed task"
+              className="flex-1 py-2 rounded-xl text-xs font-semibold text-white bdy-bg active:scale-95 transition"
+            >
+              Archive
+            </button>
+            <button
+              onClick={removeTask}
+              data-testid="task-delete-btn-full"
+              aria-label="Permanently delete this task"
+              className="flex-1 py-2 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-200 active:scale-95 transition"
+            >
+              Delete
+            </button>
+          </div>
+        )}
 
         {/* Live timer */}
         <div className="mt-4 p-4 rounded-2xl bdy-soft border border-[color:var(--bdy)]/15 text-center">

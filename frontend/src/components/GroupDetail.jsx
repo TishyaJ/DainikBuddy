@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { SharedGoalLeaderboard } from "./SharedGoalLeaderboard";
+import { Card } from "./SubTabs";
+import { EmptyState } from "./EmptyState";
 import {
     ArrowLeft,
     Users,
@@ -105,7 +107,7 @@ export const GroupDetail = () => {
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[300px]">
-                <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
+                <Loader2 className="w-6 h-6 animate-spin bdy-text" />
             </div>
         );
     }
@@ -114,7 +116,7 @@ export const GroupDetail = () => {
         return (
             <div className="p-5 text-center">
                 <p className="text-sm text-slate-500">Group not found</p>
-                <button onClick={() => nav("/social")} className="text-sm text-purple-600 mt-2">
+                <button onClick={() => nav("/social")} className="text-sm bdy-text mt-2">
                     Go back
                 </button>
             </div>
@@ -143,7 +145,7 @@ export const GroupDetail = () => {
 
                 {/* Invite code + actions */}
                 <div className="flex items-center gap-2 mb-2">
-                    <code className="text-xs font-mono font-semibold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-lg">
+                    <code className="text-xs font-mono font-semibold bdy-text bdy-soft px-2.5 py-1 rounded-lg">
                         {group.invite_code}
                     </code>
                     <button
@@ -206,7 +208,7 @@ export const GroupDetail = () => {
                     <button
                         data-testid="create-goal"
                         onClick={() => setShowNewGoal(true)}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold text-purple-600 bg-purple-50 hover:bg-purple-100 transition-colors"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold bdy-text bdy-soft hover:opacity-80 transition-colors"
                     >
                         <Plus className="w-3 h-3" /> New Goal
                     </button>
@@ -261,9 +263,14 @@ export const GroupDetail = () => {
                 </AnimatePresence>
 
                 {goals.length === 0 ? (
-                    <p className="text-xs text-slate-400 text-center py-4">
-                        No shared goals yet. Create one to start!
-                    </p>
+                    <EmptyState
+                        icon={Target}
+                        title="No shared goals yet"
+                        description="Create a goal to start tracking progress together with your group."
+                        ctaLabel="Create a Goal"
+                        onCta={() => setShowNewGoal(true)}
+                        testid="goals-empty-state"
+                    />
                 ) : (
                     <div className="space-y-3">
                         {goals.map((goal) => (
@@ -280,7 +287,12 @@ export const GroupDetail = () => {
                     <h3 className="text-sm font-semibold text-slate-700">Recent Activity</h3>
                 </div>
                 {activityFeed.length === 0 ? (
-                    <p className="text-xs text-slate-400 text-center py-4">No activity yet</p>
+                    <EmptyState
+                        icon={Clock}
+                        title="No activity yet"
+                        description="Group activity will appear here as members complete goals and milestones."
+                        testid="activity-empty-state"
+                    />
                 ) : (
                     <div data-testid="activity-feed" className="space-y-2">
                         {activityFeed.map((item, i) => (
@@ -289,7 +301,7 @@ export const GroupDetail = () => {
                                 data-testid={`activity-item-${i}`}
                                 className="flex items-start gap-2 py-2 border-b border-slate-50 last:border-0"
                             >
-                                <div className="w-1.5 h-1.5 rounded-full bg-purple-400 mt-1.5 shrink-0" />
+                                <div className="w-1.5 h-1.5 rounded-full bdy-bg mt-1.5 shrink-0" />
                                 <div className="flex-1 min-w-0">
                                     <p className="text-xs text-slate-700 leading-relaxed">{item.message}</p>
                                     <span className="text-[10px] text-slate-400">

@@ -161,6 +161,7 @@ const RegisterPage = () => {
                                 className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl"
                                 disabled={isSubmitting}
                                 data-testid={REGISTER.submitButton}
+                                aria-label="Create your account"
                             >
                                 {isSubmitting ? (
                                     <>

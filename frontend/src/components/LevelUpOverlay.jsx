@@ -60,13 +60,13 @@ export default function LevelUpOverlay() {
                         ))}
                     </div>
 
-                    {/* Main content */}
+                    {/* Main content — scale-up: 0 → 1.1 → 1 */}
                     <motion.div
                         className="flex flex-col items-center text-center px-6"
-                        initial={{ scale: 0.3, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: [0, 1.1, 1], opacity: 1 }}
                         exit={{ scale: 0.8, opacity: 0 }}
-                        transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                        transition={{ duration: 0.5, times: [0, 0.7, 1], ease: "easeOut" }}
                     >
                         {/* Star icon */}
                         <motion.div

@@ -2,6 +2,10 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Bell, DollarSign, Heart, Flame, Settings, BellOff } from "lucide-react";
 import { useNotifications } from "../context/NotificationContext";
+import { Card } from "../components/SubTabs";
+import { EmptyState } from "../components/EmptyState";
+import PageTransition from "../components/PageTransition";
+import { SkeletonList } from "../components/Skeleton";
 
 const CATEGORY_ICONS = {
     reminder: Bell,
@@ -34,7 +38,7 @@ const NotificationCenter = () => {
         .slice(0, 10);
 
     return (
-        <div className="flex flex-col h-full bg-slate-50">
+        <PageTransition className="flex flex-col h-full bg-slate-50">
             {/* Header */}
             <div className="px-5 pt-6 pb-4 bg-white border-b border-slate-100">
                 <div className="flex items-center justify-between">
@@ -42,6 +46,7 @@ const NotificationCenter = () => {
                         <button
                             data-testid="notification-back"
                             onClick={() => nav(-1)}
+                            aria-label="Go back"
                             className="w-9 h-9 rounded-full flex items-center justify-center bg-slate-100 text-slate-700"
                         >
                             <ArrowLeft className="w-4 h-4" />
@@ -51,6 +56,7 @@ const NotificationCenter = () => {
                     <button
                         data-testid="notification-preferences-link"
                         onClick={() => nav("/notifications/preferences")}
+                        aria-label="Notification preferences"
                         className="w-9 h-9 rounded-full flex items-center justify-center bg-slate-100 text-slate-700"
                     >
                         <Settings className="w-4 h-4" />
@@ -61,37 +67,30 @@ const NotificationCenter = () => {
             {/* Content */}
             <div className="flex-1 overflow-y-auto px-4 py-4">
                 {loading ? (
-                    <div className="flex items-center justify-center py-12">
-                        <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-                    </div>
+                    <SkeletonList count={4} />
                 ) : recentNotifications.length === 0 ? (
-                    <div
-                        data-testid="notification-empty-state"
-                        className="flex flex-col items-center justify-center py-16 text-center"
-                    >
-                        <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
-                            <BellOff className="w-8 h-8 text-slate-400" />
-                        </div>
-                        <p className="text-slate-500 text-base font-medium">No notifications yet</p>
-                        <p className="text-slate-400 text-sm mt-1">
-                            We'll notify you about important updates
-                        </p>
+                    <div className="px-1">
+                        <EmptyState
+                            icon={BellOff}
+                            title="No notifications yet"
+                            description="We'll notify you about budget alerts, wellness reminders, and streak celebrations."
+                            testid="notification-empty-state"
+                        />
                     </div>
                 ) : (
                     <div className="space-y-3">
                         {recentNotifications.map((notification) => {
                             const IconComponent = CATEGORY_ICONS[notification.category] || Bell;
                             return (
-                                <div
+                                <Card
                                     key={notification.id}
                                     data-testid="notification-item"
-                                    className={`bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-start gap-3 ${!notification.is_read ? "border-l-4 border-l-purple-400" : ""
-                                        }`}
+                                    className={`flex items-start gap-3 ${!notification.is_read ? "border-l-4 border-l-[color:var(--bdy)]" : ""}`}
                                 >
                                     <div
                                         className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${!notification.is_read
-                                                ? "bg-purple-100 text-purple-600"
-                                                : "bg-slate-100 text-slate-500"
+                                            ? "bdy-soft bdy-text"
+                                            : "bg-slate-100 text-slate-500"
                                             }`}
                                     >
                                         <IconComponent className="w-4 h-4" />
@@ -117,18 +116,19 @@ const NotificationCenter = () => {
                                     <button
                                         data-testid="notification-dismiss"
                                         onClick={() => markDismissed(notification.id)}
+                                        aria-label="Dismiss notification"
                                         className="text-slate-400 hover:text-slate-600 text-xs shrink-0 mt-1"
                                         title="Dismiss"
                                     >
                                         ✕
                                     </button>
-                                </div>
+                                </Card>
                             );
                         })}
                     </div>
                 )}
             </div>
-        </div>
+        </PageTransition>
     );
 };
 

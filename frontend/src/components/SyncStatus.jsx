@@ -21,7 +21,7 @@ export const SyncStatus = () => {
                 >
                     {syncStatus === "syncing" && (
                         <div className="flex items-center gap-2 bg-white rounded-full px-4 py-2.5 shadow-lg border border-slate-200">
-                            <RefreshCw className="w-4 h-4 text-purple-600 animate-spin" />
+                            <RefreshCw className="w-4 h-4 bdy-text animate-spin" />
                             <span className="text-sm font-medium text-slate-700">
                                 Syncing {pendingSync} {pendingSync === 1 ? "entry" : "entries"}...
                             </span>
@@ -42,7 +42,7 @@ export const SyncStatus = () => {
                             <button
                                 onClick={triggerSync}
                                 data-testid="sync-retry-btn"
-                                className="ml-1 text-xs font-semibold text-purple-600 hover:text-purple-800 underline"
+                                className="ml-1 text-xs font-semibold bdy-text hover:opacity-80 underline"
                             >
                                 Retry
                             </button>

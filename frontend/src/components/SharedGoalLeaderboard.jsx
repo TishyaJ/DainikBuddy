@@ -1,5 +1,7 @@
 import React from "react";
-import { Trophy, Target } from "lucide-react";
+import { Trophy, Target, Users } from "lucide-react";
+import { Card } from "./SubTabs";
+import { EmptyState } from "./EmptyState";
 
 export const SharedGoalLeaderboard = ({ goal }) => {
     if (!goal) return null;
@@ -13,9 +15,8 @@ export const SharedGoalLeaderboard = ({ goal }) => {
     });
 
     return (
-        <div
+        <Card
             data-testid={`leaderboard-${goal.id}`}
-            className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100"
         >
             {/* Goal header */}
             <div className="flex items-center gap-2 mb-3">
@@ -68,9 +69,15 @@ export const SharedGoalLeaderboard = ({ goal }) => {
             </div>
 
             {sortedMembers.length === 0 && (
-                <p className="text-xs text-slate-400 text-center py-3">No members yet</p>
+                <EmptyState
+                    icon={Users}
+                    title="No members yet"
+                    description="Invite group members to start tracking this goal together."
+                    useCard={false}
+                    testid="leaderboard-empty-state"
+                />
             )}
-        </div>
+        </Card>
     );
 };
 

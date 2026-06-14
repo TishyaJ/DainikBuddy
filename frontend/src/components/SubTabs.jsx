@@ -2,17 +2,19 @@ import React from "react";
 
 export const SubTabs = ({ tabs, active, onChange, testid = "subtab" }) => (
   <div className="px-5">
-    <div className="flex gap-2 overflow-x-auto hide-sb py-2 -mx-1 px-1">
+    <div className="flex gap-2 overflow-x-auto hide-sb py-2 -mx-1 px-1" role="tablist">
       {tabs.map((t) => {
         const isActive = active === t.key;
         return (
           <button
             key={t.key}
+            role="tab"
+            aria-selected={isActive}
             data-testid={`${testid}-${t.key}`}
+            aria-label={`Switch to ${t.label} tab`}
             onClick={() => onChange(t.key)}
-            className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all active:scale-95 ${
-              isActive ? "bdy-bg text-white shadow-sm" : "bg-white text-slate-600 border border-slate-200"
-            }`}
+            className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all active:scale-95 ${isActive ? "bdy-bg text-white shadow-sm" : "bg-white text-slate-600 border border-slate-200"
+              }`}
           >
             {t.label}
           </button>

@@ -250,6 +250,8 @@ const Goals = () => {
   const [loading, setLoading] = useState(true);
   const [newTitle, setNewTitle] = useState("");
   const [newTarget, setNewTarget] = useState("");
+  const [expandedId, setExpandedId] = useState(null);
+  const [updating, setUpdating] = useState(null);
 
   useEffect(() => {
     api.get("/goals").then((r) => { setGoals(r.data); setLoading(false); }).catch(() => setLoading(false));
@@ -263,6 +265,31 @@ const Goals = () => {
     setNewTarget("");
     const r = await api.get("/goals");
     setGoals(r.data);
+  };
+
+  const handleProgressChange = async (goalId, newValue) => {
+    setUpdating(goalId);
+    try {
+      await api.patch(`/goals/${goalId}`, { current: newValue });
+      setGoals((prev) => prev.map((g) => g.id === goalId ? { ...g, current: newValue } : g));
+    } catch { /* silently fail */ } finally {
+      setUpdating(null);
+    }
+  };
+
+  const handleArchive = async (goalId) => {
+    try {
+      await api.patch(`/goals/${goalId}`, { status: "done" });
+      setGoals((prev) => prev.filter((g) => g.id !== goalId));
+    } catch { /* silently fail */ }
+  };
+
+  const handleDelete = async (goalId) => {
+    if (!window.confirm("Delete this goal permanently?")) return;
+    try {
+      await api.delete(`/goals/${goalId}`);
+      setGoals((prev) => prev.filter((g) => g.id !== goalId));
+    } catch { /* silently fail */ }
   };
 
   const activeGoals = goals.filter(g => g.status === "active");
@@ -287,15 +314,71 @@ const Goals = () => {
           <div className="mt-3 space-y-3" data-testid="goals-list">
             {activeGoals.map((g) => {
               const pct = g.target > 0 ? Math.min(100, Math.round((g.current / g.target) * 100)) : 0;
+              const isExpanded = expandedId === g.id;
               return (
-                <div key={g.id}>
-                  <div className="flex justify-between text-sm">
+                <div key={g.id} className="p-2 rounded-xl bg-slate-50">
+                  <div
+                    className="flex justify-between text-sm cursor-pointer"
+                    onClick={() => setExpandedId(isExpanded ? null : g.id)}
+                    data-testid={`goal-row-${g.id}`}
+                    aria-label={`Update progress for ${g.title}`}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setExpandedId(isExpanded ? null : g.id); }}
+                  >
                     <span className="font-semibold">{g.title}</span>
                     <span className="bdy-text font-bold">{pct}%</span>
                   </div>
                   <div className="h-2 mt-1 rounded-full bg-slate-100">
                     <div className="h-full bdy-bg rounded-full transition-all" style={{ width: `${pct}%` }} />
                   </div>
+                  {isExpanded && (
+                    <div className="mt-2 pt-2 border-t border-slate-200">
+                      <div className="flex justify-between text-xs text-slate-500 mb-1">
+                        <span>Progress: {g.current} / {g.target} {g.unit || ""}</span>
+                        <span className="bdy-text font-semibold">{pct}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max={g.target}
+                        step={g.target >= 100 ? 1 : 0.5}
+                        value={g.current}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          setGoals((prev) => prev.map((goal) => goal.id === g.id ? { ...goal, current: val } : goal));
+                        }}
+                        onMouseUp={(e) => handleProgressChange(g.id, parseFloat(e.target.value))}
+                        onTouchEnd={(e) => handleProgressChange(g.id, parseFloat(e.target.value))}
+                        className="bdy-slider w-full"
+                        style={{ "--val": `${pct}%` }}
+                        data-testid={`goal-slider-${g.id}`}
+                        aria-label={`Set progress for ${g.title}, currently ${g.current} of ${g.target}`}
+                        disabled={updating === g.id}
+                      />
+                      {updating === g.id && <p className="text-[10px] text-slate-400 mt-1">Saving…</p>}
+                    </div>
+                  )}
+                  {pct >= 100 && (
+                    <div className="mt-2 flex gap-2" data-testid={`goal-completion-actions-${g.id}`}>
+                      <button
+                        onClick={() => handleArchive(g.id)}
+                        data-testid={`goal-archive-${g.id}`}
+                        aria-label={`Archive completed goal ${g.title}`}
+                        className="flex-1 py-1.5 rounded-lg text-xs font-semibold text-white bdy-bg active:scale-95 transition"
+                      >
+                        Archive
+                      </button>
+                      <button
+                        onClick={() => handleDelete(g.id)}
+                        data-testid={`goal-delete-${g.id}`}
+                        aria-label={`Delete goal ${g.title}`}
+                        className="flex-1 py-1.5 rounded-lg text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-200 active:scale-95 transition"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -309,6 +392,7 @@ const Goals = () => {
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               placeholder="Goal (e.g. Try 5 cheap eats)"
+              aria-label="Enter goal title"
               className="flex-1 bg-slate-50 rounded-xl px-3 py-2.5 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]"
             />
             <input
@@ -317,6 +401,7 @@ const Goals = () => {
               value={newTarget}
               onChange={(e) => setNewTarget(e.target.value)}
               placeholder="Target"
+              aria-label="Enter goal target number"
               className="w-20 bg-slate-50 rounded-xl px-2 py-2.5 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]"
             />
           </div>
@@ -324,6 +409,7 @@ const Goals = () => {
             onClick={addGoal}
             disabled={!newTitle.trim()}
             data-testid="add-goal-btn"
+            aria-label="Add new discovery goal"
             className="w-full bdy-bg text-white font-semibold py-2.5 rounded-xl flex items-center justify-center gap-1 disabled:opacity-50 active:scale-95"
           >
             <Plus className="w-4 h-4" /> Add goal
@@ -332,7 +418,7 @@ const Goals = () => {
 
         <button
           onClick={() => nav("/social")}
-          className="mt-4 w-full flex items-center justify-center gap-2 bg-indigo-600 text-white font-semibold py-2.5 rounded-xl text-sm active:scale-95 transition"
+          className="mt-4 w-full flex items-center justify-center gap-2 bdy-bg text-white font-semibold py-2.5 rounded-xl text-sm active:scale-95 transition"
           data-testid="join-community-btn"
           aria-label="Join like-minded community on Social page"
         >

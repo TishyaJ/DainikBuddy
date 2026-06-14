@@ -121,6 +121,7 @@ const LoginPage = () => {
                                 className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl"
                                 disabled={isSubmitting}
                                 data-testid={LOGIN.submitButton}
+                                aria-label="Sign in to your account"
                             >
                                 {isSubmitting ? (
                                     <>

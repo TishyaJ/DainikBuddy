@@ -5,8 +5,10 @@ import {
     LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip,
     ResponsiveContainer, CartesianGrid,
 } from "recharts";
-import { ArrowLeft, TrendingUp, TrendingDown, Minus, Loader2 } from "lucide-react";
+import { ArrowLeft, TrendingUp, TrendingDown, Minus, Loader2, BarChart2 } from "lucide-react";
 import { api } from "../lib/api";
+import { Card } from "../components/SubTabs";
+import { EmptyState } from "../components/EmptyState";
 
 const TIME_RANGES = [
     { key: "7d", label: "7 Days" },
@@ -111,9 +113,10 @@ export default function TrendsView() {
                             key={t.key}
                             onClick={() => setRange(t.key)}
                             data-testid={`range-${t.key}`}
+                            aria-label={`Show ${t.label} range`}
                             className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all active:scale-95 ${range === t.key
-                                    ? "bdy-bg text-white shadow-sm"
-                                    : "bg-white text-slate-600 border border-slate-200"
+                                ? "bdy-bg text-white shadow-sm"
+                                : "bg-white text-slate-600 border border-slate-200"
                                 }`}
                         >
                             {t.label}
@@ -130,9 +133,10 @@ export default function TrendsView() {
                             key={m.key}
                             onClick={() => setMetric(m.key)}
                             data-testid={`metric-${m.key}`}
+                            aria-label={`View ${m.label} metric`}
                             className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all active:scale-95 ${metric === m.key
-                                    ? "bg-slate-900 text-white"
-                                    : "bg-slate-100 text-slate-600"
+                                ? "bg-slate-900 text-white"
+                                : "bg-slate-100 text-slate-600"
                                 }`}
                         >
                             {m.label}
@@ -148,7 +152,7 @@ export default function TrendsView() {
                     animate={{ opacity: 1, y: 0 }}
                     className="mx-5 mt-4"
                 >
-                    <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+                    <Card>
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-xs text-slate-500 font-medium">
@@ -169,13 +173,13 @@ export default function TrendsView() {
                                 {activeMetric.unit !== "₹" ? activeMetric.unit : ""}
                             </p>
                         )}
-                    </div>
+                    </Card>
                 </motion.div>
             )}
 
             {/* Chart Area */}
             <div className="mx-5 mt-4">
-                <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+                <Card>
                     <AnimatePresence mode="wait">
                         {loading ? (
                             <motion.div
@@ -209,11 +213,14 @@ export default function TrendsView() {
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                className="h-52 flex flex-col items-center justify-center text-center px-4"
                             >
-                                <p className="text-sm text-slate-500">
-                                    Not enough data yet. Start logging to see trends here.
-                                </p>
+                                <EmptyState
+                                    icon={BarChart2}
+                                    title="No trend data yet"
+                                    description="Start logging your mood, expenses, and sleep to see trends appear here."
+                                    useCard={false}
+                                    testid="trends-empty-state"
+                                />
                             </motion.div>
                         ) : (
                             <motion.div
@@ -282,7 +289,7 @@ export default function TrendsView() {
                             </motion.div>
                         )}
                     </AnimatePresence>
-                </div>
+                </Card>
             </div>
 
             {/* Data Summary */}
@@ -293,7 +300,7 @@ export default function TrendsView() {
                     transition={{ delay: 0.2 }}
                     className="mx-5 mt-4"
                 >
-                    <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+                    <Card>
                         <h3 className="text-sm font-semibold font-display text-slate-900">Summary</h3>
                         <div className="grid grid-cols-3 gap-3 mt-3">
                             {data.summary.map((item, idx) => (
@@ -303,7 +310,7 @@ export default function TrendsView() {
                                 </div>
                             ))}
                         </div>
-                    </div>
+                    </Card>
                 </motion.div>
             )}
         </div>

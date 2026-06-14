@@ -89,6 +89,7 @@ export default function ChatCenter() {
           <button
             key={b.key} onClick={() => nav(`/chat/${b.key}`)}
             data-testid={`buddy-card-${b.key}`}
+            aria-label={`Chat with ${b.name}`}
             className="w-full flex items-center gap-3 p-3.5 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition active:scale-[0.98]"
           >
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl" style={{ background: b.bg }}>
@@ -116,7 +117,8 @@ export default function ChatCenter() {
               <button
                 onClick={fetchLifeBalance}
                 data-testid="chat-lb-retry-btn"
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600 text-white active:scale-95 transition"
+                aria-label="Retry loading life-balance data"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bdy-bg text-white active:scale-95 transition"
               >
                 <RefreshCw className="w-3 h-3" /> Retry
               </button>
@@ -142,7 +144,7 @@ export default function ChatCenter() {
                   <RadarChart data={lb.domains} outerRadius={40}>
                     <PolarGrid stroke="#E2E8F0" />
                     <PolarAngleAxis dataKey="name" tick={{ fontSize: 9, fill: "#64748B" }} />
-                    <Radar dataKey="score" stroke="#A855F7" fill="#A855F7" fillOpacity={0.35} />
+                    <Radar dataKey="score" stroke="var(--bdy)" fill="var(--bdy)" fillOpacity={0.35} />
                   </RadarChart>
                 </ResponsiveContainer>
               </div>
@@ -173,7 +175,7 @@ export default function ChatCenter() {
         ) : (
           <Card>
             <div className="h-[120px] flex items-center justify-center">
-              <div className="w-6 h-6 border-2 border-slate-300 border-t-purple-500 rounded-full animate-spin" />
+              <div className="w-6 h-6 border-2 border-slate-300 border-t-[color:var(--bdy)] rounded-full animate-spin" />
             </div>
           </Card>
         )}
@@ -187,7 +189,8 @@ export default function ChatCenter() {
               <button
                 onClick={fetchInsights}
                 data-testid="chat-insights-retry-btn"
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600 text-white active:scale-95 transition"
+                aria-label="Retry loading daily insights"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bdy-bg text-white active:scale-95 transition"
               >
                 <RefreshCw className="w-3 h-3" /> Retry
               </button>
@@ -222,7 +225,8 @@ export default function ChatCenter() {
               <button
                 onClick={fetchWeekly}
                 data-testid="chat-weekly-retry-btn"
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600 text-white active:scale-95 transition"
+                aria-label="Retry loading weekly review"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bdy-bg text-white active:scale-95 transition"
               >
                 <RefreshCw className="w-3 h-3" /> Retry
               </button>
@@ -254,7 +258,7 @@ export default function ChatCenter() {
         ) : (
           <Card>
             <div className="h-[80px] flex items-center justify-center">
-              <div className="w-5 h-5 border-2 border-slate-300 border-t-purple-500 rounded-full animate-spin" />
+              <div className="w-5 h-5 border-2 border-slate-300 border-t-[color:var(--bdy)] rounded-full animate-spin" />
             </div>
           </Card>
         )}

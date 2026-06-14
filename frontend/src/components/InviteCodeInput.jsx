@@ -64,6 +64,7 @@ export const InviteCodeInput = ({ onSubmit, loading = false, error = "" }) => {
                         value={char}
                         onChange={(e) => handleChange(i, e.target.value)}
                         onKeyDown={(e) => handleKeyDown(i, e)}
+                        aria-label={`Invite code character ${i + 1}`}
                         className="w-10 h-12 text-center text-lg font-bold rounded-xl border-2 border-slate-200 focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none transition-all bg-white"
                     />
                 ))}
@@ -80,6 +81,7 @@ export const InviteCodeInput = ({ onSubmit, loading = false, error = "" }) => {
                 whileTap={{ scale: 0.95 }}
                 onClick={handleSubmit}
                 disabled={!isValid || loading}
+                aria-label="Submit invite code to join group"
                 className="w-full py-2.5 rounded-full text-sm font-semibold text-white bdy-bg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
                 {loading ? "Joining…" : "Join Group"}

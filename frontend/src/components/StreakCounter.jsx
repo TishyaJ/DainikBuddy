@@ -2,11 +2,19 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Flame } from "lucide-react";
 
+const MILESTONES = [7, 14, 30, 60, 90];
+
 export default function StreakCounter({ streakDays }) {
     const hasStreak = streakDays > 0;
+    const isMilestone = MILESTONES.includes(streakDays);
 
     return (
-        <div className="flex items-center gap-2" data-testid="streak-counter">
+        <motion.div
+            className="flex items-center gap-2"
+            data-testid="streak-counter"
+            animate={isMilestone ? { scale: [1, 1.2, 1] } : {}}
+            transition={isMilestone ? { duration: 0.4, ease: "easeInOut" } : {}}
+        >
             {hasStreak ? (
                 <motion.div
                     animate={{
@@ -29,7 +37,17 @@ export default function StreakCounter({ streakDays }) {
                     {streakDays}
                 </span>
                 <span className="text-xs text-slate-500">day streak</span>
+                {isMilestone && (
+                    <motion.span
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ type: "spring", stiffness: 400, damping: 10 }}
+                        className="text-xs ml-1"
+                    >
+                        🎉
+                    </motion.span>
+                )}
             </div>
-        </div>
+        </motion.div>
     );
 }

@@ -96,7 +96,7 @@ export default function BuddyChat() {
     <div data-domain={meta.color} className="flex-1 flex flex-col overflow-hidden bg-[#FAFAFA]">
       <div className="px-5 pt-6 pb-4 bdy-gradient text-white">
         <div className="flex items-center justify-between">
-          <button onClick={() => nav("/chat")} data-testid="chat-back-btn" className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
+          <button onClick={() => nav("/chat")} data-testid="chat-back-btn" aria-label="Go back to chat list" className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div className="text-center">
@@ -104,7 +104,7 @@ export default function BuddyChat() {
             <div className="font-display font-bold text-base leading-tight">{meta.name}</div>
             <div className="text-[10px] text-white/80">{meta.tag}</div>
           </div>
-          <button onClick={clear} data-testid="chat-clear-btn" className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
+          <button onClick={clear} data-testid="chat-clear-btn" aria-label="Clear chat history" className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
             <RotateCcw className="w-4 h-4" />
           </button>
         </div>
@@ -136,6 +136,7 @@ export default function BuddyChat() {
           <div className="flex flex-col gap-1.5">
             {meta.prompts.map((p) => (
               <button key={p} onClick={() => send(p)} data-testid={`prompt-${p.slice(0, 10)}`}
+                aria-label={`Ask: ${p}`}
                 className="text-left text-xs bg-white border border-slate-200 rounded-full px-3 py-2 text-slate-700 hover:bdy-soft">
                 {p}
               </button>
@@ -145,16 +146,18 @@ export default function BuddyChat() {
       )}
 
       <div className="border-t border-slate-200 bg-white px-3 py-3 flex items-center gap-2">
-        <button data-testid="mic-btn" className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
+        <button data-testid="mic-btn" aria-label="Voice input" className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
           <Mic className="w-4 h-4" />
         </button>
         <input
           data-testid="chat-input" value={input} onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
           placeholder="Type a message..."
+          aria-label="Type a message to your buddy"
           className="flex-1 bg-slate-100 rounded-full px-4 py-2.5 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-[color:var(--bdy)]/30"
         />
         <button onClick={() => send()} disabled={streaming} data-testid="chat-send-btn"
+          aria-label="Send message"
           className="w-10 h-10 rounded-full bdy-bg text-white flex items-center justify-center disabled:opacity-50 active:scale-95">
           <Send className="w-4 h-4" />
         </button>

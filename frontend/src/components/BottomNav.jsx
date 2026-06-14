@@ -4,12 +4,12 @@ import { NavLink } from "react-router-dom";
 import { useDomain } from "../context/DomainContext";
 
 const tabs = [
-  { to: "/", label: "Home", icon: Home, domain: "daily", testid: "nav-home" },
-  { to: "/finance", label: "Finance", icon: Wallet, domain: "finance", testid: "nav-finance" },
-  { to: "/wellness", label: "Wellness", icon: Cloud, domain: "wellness", testid: "nav-wellness" },
-  { to: "/discover", label: "Discover", icon: Compass, domain: "discover", testid: "nav-discover" },
-  { to: "/social", label: "Social", icon: Users, domain: "helper", testid: "nav-social" },
-  { to: "/chat", label: "Chat", icon: MessageCircle, domain: "helper", testid: "nav-chat" },
+  { to: "/", label: "Home", icon: Home, domain: "daily", testid: "nav-home", ariaLabel: "Navigate to Daily Hub" },
+  { to: "/finance", label: "Finance", icon: Wallet, domain: "finance", testid: "nav-finance", ariaLabel: "Navigate to Finance Buddy" },
+  { to: "/wellness", label: "Wellness", icon: Cloud, domain: "wellness", testid: "nav-wellness", ariaLabel: "Navigate to Wellness Buddy" },
+  { to: "/discover", label: "Discover", icon: Compass, domain: "discover", testid: "nav-discover", ariaLabel: "Navigate to Discover Buddy" },
+  { to: "/social", label: "Social", icon: Users, domain: "helper", testid: "nav-social", ariaLabel: "Navigate to Social page" },
+  { to: "/chat", label: "Chat", icon: MessageCircle, domain: "helper", testid: "nav-chat", ariaLabel: "Navigate to Chat Center" },
 ];
 
 export const BottomNav = () => {
@@ -26,6 +26,7 @@ export const BottomNav = () => {
           end={t.to === "/"}
           onClick={() => setDomain(t.domain)}
           data-testid={t.testid}
+          aria-label={t.ariaLabel}
           className={({ isActive }) =>
             `flex flex-col items-center gap-0.5 px-3 py-1.5 no-tap-highlight transition-all ${isActive ? "text-[color:var(--bdy)] scale-105" : "text-slate-400"
             }`

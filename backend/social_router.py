@@ -36,11 +36,16 @@ class CreateChallengeRequest(BaseModel):
     description: str
     type: str  # finance | wellness | productivity
     criteria: dict = {}
-    badge_id: str
+    badge_id: str = ""
 
 
 class UpdateChallengeProgressRequest(BaseModel):
     progress: float
+
+
+class CompleteChallengeRequest(BaseModel):
+    mood: Optional[int] = None  # 1-5 emotion scale
+    reflection: Optional[str] = None  # max 200 chars
 
 
 # ============ STUDY GROUPS ============
@@ -146,8 +151,15 @@ async def update_goal_progress(group_id: str, goal_id: str, req: UpdateProgressR
 
 @social_router.get("/challenges")
 async def list_challenges(user_id: str = Depends(get_current_user)):
-    """Get current week's active community challenges."""
-    return await social_service.get_active_challenges()
+    """Get current week's active community challenges with user participation info."""
+    challenges = await social_service.get_active_challenges()
+    # Add 'joined' flag for the current user
+    for c in challenges:
+        participants = c.get("participants", [])
+        participant = next((p for p in participants if p.get("user_id") == user_id), None)
+        c["joined"] = participant is not None
+        c["completed"] = participant.get("completed", False) if participant else False
+    return challenges
 
 
 @social_router.post("/challenges")
@@ -161,6 +173,7 @@ async def create_challenge(req: CreateChallengeRequest, user_id: str = Depends(g
         challenge_type=req.type,
         criteria=req.criteria,
         badge_id=req.badge_id,
+        creator_id=user_id,
     )
     return challenge
 
@@ -181,4 +194,33 @@ async def update_challenge_progress(challenge_id: str, req: UpdateChallengeProgr
     result = await social_service.update_challenge_progress(user_id, challenge_id, req.progress)
     if not result:
         raise HTTPException(status_code=404, detail="Challenge not found or not joined")
+    return result
+
+
+@social_router.post("/challenges/{challenge_id}/complete")
+async def complete_challenge(challenge_id: str, req: CompleteChallengeRequest,
+                             user_id: str = Depends(get_current_user)):
+    """Mark a challenge as completed. Optionally accepts mood (1-5) and reflection text."""
+    if req.mood is not None and not (1 <= req.mood <= 5):
+        raise HTTPException(status_code=400, detail="Mood must be between 1 and 5")
+    if req.reflection and len(req.reflection) > 200:
+        raise HTTPException(status_code=400, detail="Reflection must be 200 characters or less")
+    result = await social_service.complete_challenge_with_reflection(
+        user_id, challenge_id, mood=req.mood, reflection=req.reflection
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Challenge not found or not joined")
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@social_router.post("/challenges/{challenge_id}/close")
+async def close_challenge(challenge_id: str, user_id: str = Depends(get_current_user)):
+    """Close a challenge early. Only the creator can close."""
+    result = await social_service.close_challenge(user_id, challenge_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Challenge not found")
+    if "error" in result:
+        raise HTTPException(status_code=403, detail=result["error"])
     return result

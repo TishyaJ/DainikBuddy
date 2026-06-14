@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Header } from "../components/Header";
 import { SubTabs, Card, InsightCard } from "../components/SubTabs";
+import { EmptyState } from "../components/EmptyState";
 import { Wallet, TrendingUp, AlertTriangle, CreditCard, Plane, ShieldCheck, PiggyBank, Users, Sparkles, Plus, Pencil, Check, X, Trash2 } from "lucide-react";
 import { api } from "../lib/api";
 import { BarChart, Bar, XAxis, ResponsiveContainer, LineChart, Line, Cell } from "recharts";
+import PageTransition from "../components/PageTransition";
 
 const Ring = ({ pct, value, label }) => {
   const r = 60, c = 2 * Math.PI * r;
@@ -96,7 +98,15 @@ const Expenses = () => {
               <div className="font-bold text-sm">-₹{e.amount}</div>
             </div>
           ))}
-          {list.length === 0 && <p className="text-xs text-slate-400 text-center py-4">No expenses yet. Add one from Daily Hub.</p>}
+          {list.length === 0 && (
+            <EmptyState
+              icon={Wallet}
+              title="No transactions yet"
+              description="Log your first expense from the Daily Hub to start tracking spending."
+              useCard={false}
+              testid="expenses-empty-state"
+            />
+          )}
         </div>
       </Card>
     </div>
@@ -181,7 +191,8 @@ const Alerts = () => {
         <p className="text-xs text-slate-500">Notify me when category exceeds {threshold}%</p>
         <input type="range" min="50" max="100" value={threshold} onChange={(e) => setThreshold(parseInt(e.target.value))}
           className="bdy-slider mt-3" style={{ "--val": `${(threshold - 50) * 2}%` }}
-          data-testid="alert-threshold" />
+          data-testid="alert-threshold"
+          aria-label={`Alert threshold at ${threshold} percent`} />
       </Card>
     </div>
   );
@@ -229,35 +240,47 @@ const Subs = () => {
               </div>
               <span className="font-bold text-sm">₹{s.amount}</span>
               <button onClick={() => removeSub(s.id)} data-testid={`delete-sub-${s.id}`}
+                aria-label={`Remove subscription ${s.name}`}
                 className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-rose-500 hover:bg-rose-50">
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
           ))}
-          {data.items.length === 0 && <p className="text-xs text-slate-400 text-center py-4">No subscriptions tracked yet.</p>}
+          {data.items.length === 0 && (
+            <EmptyState
+              icon={CreditCard}
+              title="No subscriptions tracked"
+              description="Add your recurring subscriptions to keep track of monthly commitments."
+              useCard={false}
+              testid="subs-empty-state"
+            />
+          )}
         </div>
 
         {!showForm ? (
           <button onClick={() => setShowForm(true)} data-testid="add-sub-toggle"
+            aria-label="Add a new subscription"
             className="w-full mt-3 py-2.5 rounded-xl border border-dashed border-slate-300 text-sm font-semibold text-slate-600 flex items-center justify-center gap-1 hover:border-[color:var(--bdy)] hover:bdy-text">
             <Plus className="w-4 h-4" /> Add Subscription
           </button>
         ) : (
           <div className="mt-3 p-3 rounded-xl bg-slate-50 space-y-2" data-testid="add-sub-form">
             <input data-testid="sub-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Subscription name" className="w-full bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
+              placeholder="Subscription name" aria-label="Enter subscription name" className="w-full bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
             <div className="flex gap-2">
               <input data-testid="sub-amount" type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                placeholder="₹ Amount" className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
+                placeholder="₹ Amount" aria-label="Enter subscription amount" className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
               <input data-testid="sub-renews" type="date" value={form.renews_on} onChange={(e) => setForm({ ...form, renews_on: e.target.value })}
-                className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
+                aria-label="Select renewal date" className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
             </div>
             <div className="flex gap-2">
               <button onClick={addSub} disabled={busy || !form.name.trim()} data-testid="save-sub-btn"
+                aria-label="Save subscription"
                 className="flex-1 bdy-bg text-white font-semibold py-2 rounded-xl text-sm disabled:opacity-50 active:scale-95">
                 Save
               </button>
               <button onClick={() => setShowForm(false)}
+                aria-label="Cancel adding subscription"
                 className="px-4 py-2 rounded-xl bg-slate-200 text-slate-700 text-sm font-semibold">
                 Cancel
               </button>
@@ -415,11 +438,20 @@ const Savings = () => {
               </div>
             );
           })}
-          {g.length === 0 && <p className="text-xs text-slate-400 text-center py-4">No savings goals yet. Create one below.</p>}
+          {g.length === 0 && (
+            <EmptyState
+              icon={PiggyBank}
+              title="No savings goals yet"
+              description="Create a savings goal below to start tracking your progress toward what matters."
+              useCard={false}
+              testid="savings-empty-state"
+            />
+          )}
         </div>
 
         {!showForm ? (
           <button onClick={() => setShowForm(true)} data-testid="add-savings-toggle"
+            aria-label="Create a new savings goal"
             className="w-full mt-3 py-2.5 rounded-xl border border-dashed border-slate-300 text-sm font-semibold text-slate-600 flex items-center justify-center gap-1 hover:border-[color:var(--bdy)] hover:bdy-text">
             <Plus className="w-4 h-4" /> New Savings Goal
           </button>
@@ -427,22 +459,24 @@ const Savings = () => {
           <div className="mt-3 p-3 rounded-xl bg-slate-50 space-y-2" data-testid="add-savings-form">
             <div className="flex gap-2">
               <input data-testid="savings-emoji" value={form.emoji} onChange={(e) => setForm({ ...form, emoji: e.target.value })}
-                className="w-12 bg-white rounded-xl px-2 py-2 text-center text-sm border border-slate-200 outline-none" maxLength={2} />
+                aria-label="Choose emoji for savings goal" className="w-12 bg-white rounded-xl px-2 py-2 text-center text-sm border border-slate-200 outline-none" maxLength={2} />
               <input data-testid="savings-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Goal name" className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
+                placeholder="Goal name" aria-label="Enter savings goal name" className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
             </div>
             <div className="flex gap-2">
               <input data-testid="savings-target" type="number" value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })}
-                placeholder="₹ Target amount" className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
+                placeholder="₹ Target amount" aria-label="Enter target savings amount" className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
               <input data-testid="savings-saved" type="number" value={form.saved} onChange={(e) => setForm({ ...form, saved: e.target.value })}
-                placeholder="₹ Already saved" className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
+                placeholder="₹ Already saved" aria-label="Enter amount already saved" className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
             </div>
             <div className="flex gap-2">
               <button onClick={addGoal} disabled={busy || !form.name.trim() || !form.target} data-testid="save-savings-btn"
+                aria-label="Create savings goal"
                 className="flex-1 bdy-bg text-white font-semibold py-2 rounded-xl text-sm disabled:opacity-50 active:scale-95">
                 Create Goal
               </button>
               <button onClick={() => setShowForm(false)}
+                aria-label="Cancel creating savings goal"
                 className="px-4 py-2 rounded-xl bg-slate-200 text-slate-700 text-sm font-semibold">
                 Cancel
               </button>
@@ -512,32 +546,43 @@ const Splits = () => {
               </button>
             </div>
           ))}
-          {data.items.length === 0 && <p className="text-xs text-slate-400 text-center py-4">No splits yet. Add one below.</p>}
+          {data.items.length === 0 && (
+            <EmptyState
+              icon={Users}
+              title="No splits yet"
+              description="Split a bill with friends to track who owes what."
+              useCard={false}
+              testid="splits-empty-state"
+            />
+          )}
         </div>
 
         {!showForm ? (
           <button onClick={() => setShowForm(true)} data-testid="add-split-toggle"
+            aria-label="Add a new split bill"
             className="w-full mt-3 py-2.5 rounded-xl border border-dashed border-slate-300 text-sm font-semibold text-slate-600 flex items-center justify-center gap-1 hover:border-[color:var(--bdy)] hover:bdy-text">
             <Plus className="w-4 h-4" /> Add Split Bill
           </button>
         ) : (
           <div className="mt-3 p-3 rounded-xl bg-slate-50 space-y-2" data-testid="add-split-form">
             <input data-testid="split-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
-              placeholder="What was it for?" className="w-full bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
+              placeholder="What was it for?" aria-label="Enter split bill description" className="w-full bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
             <div className="flex gap-2">
               <input data-testid="split-total" type="number" value={form.total} onChange={(e) => setForm({ ...form, total: e.target.value })}
-                placeholder="₹ Total bill" className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
+                placeholder="₹ Total bill" aria-label="Enter total bill amount" className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
               <input data-testid="split-person" value={form.with_person} onChange={(e) => setForm({ ...form, with_person: e.target.value })}
-                placeholder="Split with" className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
+                placeholder="Split with" aria-label="Enter person to split with" className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
             </div>
             <input data-testid="split-you-paid" type="number" value={form.you_paid} onChange={(e) => setForm({ ...form, you_paid: e.target.value })}
-              placeholder="₹ You paid (0 if they paid)" className="w-full bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
+              placeholder="₹ You paid (0 if they paid)" aria-label="Enter amount you paid" className="w-full bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
             <div className="flex gap-2">
               <button onClick={addSplit} disabled={busy || !form.title.trim() || !form.total || !form.with_person.trim()} data-testid="save-split-btn"
+                aria-label="Save split bill"
                 className="flex-1 bdy-bg text-white font-semibold py-2 rounded-xl text-sm disabled:opacity-50 active:scale-95">
                 Save Split
               </button>
               <button onClick={() => setShowForm(false)}
+                aria-label="Cancel adding split"
                 className="px-4 py-2 rounded-xl bg-slate-200 text-slate-700 text-sm font-semibold">
                 Cancel
               </button>
@@ -793,10 +838,10 @@ export default function FinanceBuddy() {
   const [tab, setTab] = useState("dash");
   const Active = TABS.find((t) => t.key === tab).C;
   return (
-    <div className="flex-1 overflow-auto scroll-area pb-4">
+    <PageTransition className="flex-1 overflow-auto scroll-area pb-4">
       <Header title="Finance Buddy 🦉" subtitle="Track. Plan. Achieve." gradient />
       <SubTabs tabs={TABS} active={tab} onChange={setTab} testid="fin-tab" />
       <Active />
-    </div>
+    </PageTransition>
   );
 }

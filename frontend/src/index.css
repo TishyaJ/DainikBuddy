@@ -27,9 +27,13 @@
   --radius: 0.75rem;
 }
 
-* { border-color: hsl(var(--border)); }
+* {
+  border-color: hsl(var(--border));
+}
 
-html, body, #root {
+html,
+body,
+#root {
   margin: 0;
   padding: 0;
   background: #E2E8F0;
@@ -38,26 +42,85 @@ html, body, #root {
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3, h4, h5, h6, .font-display {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.font-display {
   font-family: 'Outfit', sans-serif;
   letter-spacing: -0.02em;
 }
 
 /* Phone frame scrollbar hide */
-.scroll-area::-webkit-scrollbar { width: 0; display: none; }
-.scroll-area { scrollbar-width: none; }
+.scroll-area::-webkit-scrollbar {
+  width: 0;
+  display: none;
+}
+
+.scroll-area {
+  scrollbar-width: none;
+}
 
 /* Domain themes - dynamic primary via CSS vars */
-[data-domain="daily"]    { --bdy: #A855F7; --bdy-soft: #FAF5FF; --bdy-2: #EC4899; }
-[data-domain="finance"]  { --bdy: #3B82F6; --bdy-soft: #EFF6FF; --bdy-2: #8B5CF6; }
-[data-domain="wellness"] { --bdy: #A78BFA; --bdy-soft: #F5F3FF; --bdy-2: #34D399; }
-[data-domain="discover"] { --bdy: #F43F5E; --bdy-soft: #FFF1F2; --bdy-2: #F97316; }
-[data-domain="helper"]   { --bdy: #A855F7; --bdy-soft: #FAF5FF; --bdy-2: #EC4899; }
+[data-domain="daily"] {
+  --bdy: #A855F7;
+  --bdy-soft: #FAF5FF;
+  --bdy-2: #EC4899;
+}
 
-.bdy-bg { background: var(--bdy); }
-.bdy-text { color: var(--bdy); }
-.bdy-soft { background: var(--bdy-soft); }
-.bdy-gradient { background: linear-gradient(135deg, var(--bdy) 0%, var(--bdy-2) 100%); }
+[data-domain="finance"] {
+  --bdy: #3B82F6;
+  --bdy-soft: #EFF6FF;
+  --bdy-2: #8B5CF6;
+}
+
+[data-domain="wellness"] {
+  --bdy: #A78BFA;
+  --bdy-soft: #F5F3FF;
+  --bdy-2: #34D399;
+}
+
+[data-domain="discover"] {
+  --bdy: #F43F5E;
+  --bdy-soft: #FFF1F2;
+  --bdy-2: #F97316;
+}
+
+[data-domain="helper"] {
+  --bdy: #A855F7;
+  --bdy-soft: #FAF5FF;
+  --bdy-2: #EC4899;
+}
+
+/* Smooth domain color transition on nav changes */
+[data-domain] {
+  transition: color 200ms ease-out, background-color 200ms ease-out;
+}
+
+[data-domain] .bdy-bg,
+[data-domain] .bdy-text,
+[data-domain] .bdy-soft,
+[data-domain] .bdy-gradient {
+  transition: color 200ms ease-out, background-color 200ms ease-out, background 200ms ease-out;
+}
+
+.bdy-bg {
+  background: var(--bdy);
+}
+
+.bdy-text {
+  color: var(--bdy);
+}
+
+.bdy-soft {
+  background: var(--bdy-soft);
+}
+
+.bdy-gradient {
+  background: linear-gradient(135deg, var(--bdy) 0%, var(--bdy-2) 100%);
+}
 
 /* Slider thumb */
 input[type=range].bdy-slider {
@@ -65,21 +128,67 @@ input[type=range].bdy-slider {
   width: 100%;
   height: 8px;
   border-radius: 999px;
-  background: linear-gradient(to right, var(--bdy) 0%, var(--bdy) var(--val,50%), #E2E8F0 var(--val,50%), #E2E8F0 100%);
+  background: linear-gradient(to right, var(--bdy) 0%, var(--bdy) var(--val, 50%), #E2E8F0 var(--val, 50%), #E2E8F0 100%);
   outline: none;
 }
+
 input[type=range].bdy-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 22px; height: 22px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: white;
   border: 3px solid var(--bdy);
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
-.no-tap-highlight { -webkit-tap-highlight-color: transparent; }
+.no-tap-highlight {
+  -webkit-tap-highlight-color: transparent;
+}
 
 /* hide scrollbar on horizontal pill row */
-.hide-sb::-webkit-scrollbar { display: none; }
-.hide-sb { scrollbar-width: none; }
+.hide-sb::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-sb {
+  scrollbar-width: none;
+}
+
+/* ===== Accessibility: Focus-visible ring for interactive elements ===== */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[role="button"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px white, 0 0 0 4px var(--bdy, #A855F7);
+}
+
+/* ===== WCAG AA Contrast: Darker domain color variants for button backgrounds ===== */
+[data-domain="daily"] {
+  --bdy-dark: #9333EA;
+}
+
+[data-domain="finance"] {
+  --bdy-dark: #2563EB;
+}
+
+[data-domain="wellness"] {
+  --bdy-dark: #7C3AED;
+}
+
+[data-domain="discover"] {
+  --bdy-dark: #E11D48;
+}
+
+[data-domain="helper"] {
+  --bdy-dark: #9333EA;
+}
+
+/* Use darker background on primary action buttons for better white text contrast */
+.bdy-bg-strong {
+  background: var(--bdy-dark);
+}

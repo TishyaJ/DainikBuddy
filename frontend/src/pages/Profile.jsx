@@ -3,12 +3,16 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { Card, InsightCard } from "../components/SubTabs";
 import Onboarding from "./Onboarding";
-import { ArrowLeft, Pencil, Wallet, Heart, Flame, Sparkles, LogOut, Check, X } from "lucide-react";
+import { ArrowLeft, Pencil, Wallet, Heart, Flame, Sparkles, LogOut, Check, X, Clock, CheckCircle2, Target } from "lucide-react";
 import { useGamification } from "../context/GamificationContext";
 import { useAuth } from "../context/AuthContext";
 import XPProgressBar from "../components/XPProgressBar";
 import StreakCounter from "../components/StreakCounter";
 import AchievementBadge from "../components/AchievementBadge";
+import PageTransition from "../components/PageTransition";
+import { SkeletonCard, SkeletonCircle, SkeletonLine } from "../components/Skeleton";
+import ErrorCard from "../components/ErrorCard";
+import { motion, AnimatePresence } from "framer-motion";
 
 const PATTERN_LABELS = {
   spending_style: { label: "Spending style", icon: "💸", map: { careful: "Carefully tracked", impulse: "Impulse buyer", essentials: "Essentials first", mix: "Mix of both" } },
@@ -42,7 +46,17 @@ export default function Profile() {
     await load();
   };
 
-  if (!profile) return null;
+  if (!profile) return (
+    <div data-domain="helper" className="flex-1 overflow-auto scroll-area pb-4 bg-[#FAFAFA] px-5 pt-6 space-y-3">
+      <div className="flex flex-col items-center gap-3">
+        <SkeletonCircle size="w-20 h-20" />
+        <SkeletonLine width="40%" height="h-5" />
+        <SkeletonLine width="60%" height="h-3" />
+      </div>
+      <SkeletonCard lines={3} />
+      <SkeletonCard lines={4} />
+    </div>
+  );
 
   if (showEditPattern) {
     return <Onboarding initial={profile} isEdit onDone={() => { setShowEditPattern(false); load(); }} />;
@@ -53,10 +67,10 @@ export default function Profile() {
   const initial = profile.avatar_initial || profile.name?.[0] || "A";
 
   return (
-    <div data-domain="helper" className="flex-1 overflow-auto scroll-area pb-4 bg-[#FAFAFA]" data-testid="profile-screen">
+    <PageTransition data-domain="helper" className="flex-1 overflow-auto scroll-area pb-4 bg-[#FAFAFA]" data-testid="profile-screen">
       <div className="bdy-gradient text-white px-5 pt-6 pb-10 rounded-b-3xl">
         <div className="flex items-center justify-between">
-          <button onClick={() => nav(-1)} data-testid="profile-back-btn" className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
+          <button onClick={() => nav(-1)} data-testid="profile-back-btn" aria-label="Go back" className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
             <ArrowLeft className="w-4 h-4" />
           </button>
           <span className="font-display font-bold text-base">Your Profile</span>
@@ -91,7 +105,7 @@ export default function Profile() {
             <h3 className="font-display font-bold text-base">Account</h3>
             {editing ? (
               <div className="flex gap-1">
-                <button onClick={saveBasic} data-testid="profile-save-btn" className="w-8 h-8 rounded-lg bdy-bg text-white flex items-center justify-center">
+                <button onClick={saveBasic} data-testid="profile-save-btn" aria-label="Save profile changes" className="w-8 h-8 rounded-lg bdy-bg text-white flex items-center justify-center">
                   <Check className="w-4 h-4" />
                 </button>
                 <button onClick={() => { setEditing(false); setName(profile.name); setIncome(String(profile.monthly_income)); }}
@@ -101,6 +115,7 @@ export default function Profile() {
               </div>
             ) : (
               <button onClick={() => setEditing(true)} data-testid="profile-edit-btn"
+                aria-label="Edit profile"
                 className="text-xs font-semibold bdy-text flex items-center gap-1">
                 <Pencil className="w-3.5 h-3.5" /> Edit
               </button>
@@ -138,6 +153,8 @@ export default function Profile() {
 
         <GamificationCard />
 
+        <HistoryCard />
+
         <Card>
           <div className="flex justify-between items-center">
             <div>
@@ -147,6 +164,7 @@ export default function Profile() {
             <button
               onClick={() => setShowEditPattern(true)}
               data-testid="edit-pattern-btn"
+              aria-label="Edit your pattern preferences"
               className="text-xs font-semibold bdy-text flex items-center gap-1"
             >
               <Pencil className="w-3.5 h-3.5" /> {hasPattern ? "Edit" : "Set up"}
@@ -235,7 +253,7 @@ export default function Profile() {
           </ul>
         </Card>
       </div>
-    </div>
+    </PageTransition>
   );
 }
 
@@ -246,8 +264,10 @@ function GamificationCard() {
     return (
       <Card>
         <h3 className="font-display font-bold text-base">Gamification</h3>
-        <div className="mt-3 flex items-center justify-center py-4">
-          <div className="w-5 h-5 border-2 border-slate-300 border-t-[color:var(--bdy)] rounded-full animate-spin" />
+        <div className="mt-3 space-y-3">
+          <SkeletonLine width="80%" height="h-3" />
+          <SkeletonLine width="60%" height="h-2.5" />
+          <SkeletonLine width="40%" height="h-3" />
         </div>
       </Card>
     );
@@ -255,10 +275,10 @@ function GamificationCard() {
 
   if (error || !status) {
     return (
-      <Card>
-        <h3 className="font-display font-bold text-base">Gamification</h3>
-        <p className="mt-2 text-xs text-slate-500">Unable to load gamification data.</p>
-      </Card>
+      <ErrorCard
+        message="Unable to load gamification data."
+        testid="gamification-error"
+      />
     );
   }
 
@@ -292,6 +312,152 @@ function GamificationCard() {
                 <AchievementBadge key={badge.id || badge.name} achievement={badge} />
               ))}
             </div>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+const TIME_FILTERS = [
+  { key: "7", label: "7d" },
+  { key: "30", label: "30d" },
+  { key: "90", label: "90d" },
+  { key: "all", label: "All" },
+];
+
+function groupByDate(items) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 86400000);
+  const thisWeekStart = new Date(today.getTime() - today.getDay() * 86400000);
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const groups = { Today: [], Yesterday: [], "This Week": [], "This Month": [], Older: [] };
+
+  for (const item of items) {
+    const d = new Date(item.completed_at);
+    if (d >= today) groups.Today.push(item);
+    else if (d >= yesterday) groups.Yesterday.push(item);
+    else if (d >= thisWeekStart) groups["This Week"].push(item);
+    else if (d >= thisMonthStart) groups["This Month"].push(item);
+    else groups.Older.push(item);
+  }
+
+  return Object.entries(groups).filter(([, items]) => items.length > 0);
+}
+
+function HistoryCard() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("all");
+
+  useEffect(() => {
+    fetchHistory();
+  }, [filter]);
+
+  const fetchHistory = async () => {
+    setLoading(true);
+    try {
+      const params = filter !== "all" ? `?range=${filter}d` : "";
+      const res = await api.get(`/history${params}`);
+      setItems(res.data);
+    } catch {
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const grouped = groupByDate(items);
+
+  return (
+    <Card>
+      <div className="flex justify-between items-center" data-testid="history-section">
+        <h3 className="font-display font-bold text-base">History</h3>
+        <div className="flex gap-1">
+          {TIME_FILTERS.map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              data-testid={`history-filter-${f.key}`}
+              aria-label={`Filter history to ${f.label}`}
+              className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-all ${filter === f.key
+                  ? "bdy-bg text-white"
+                  : "bg-slate-100 text-slate-600"
+                }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-3" data-testid="history-timeline">
+        {loading ? (
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-10 rounded-xl bg-slate-100 animate-pulse" />
+            ))}
+          </div>
+        ) : items.length === 0 ? (
+          <div className="text-center py-6" data-testid="history-empty">
+            <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+            <p className="text-sm text-slate-500">No history yet.</p>
+            <p className="text-xs text-slate-400 mt-1">
+              Completed tasks and goals will appear here.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <AnimatePresence>
+              {grouped.map(([group, groupItems]) => (
+                <motion.div
+                  key={group}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <p className="text-[10px] font-bold uppercase text-slate-500 mb-1.5">{group}</p>
+                  <div className="space-y-1.5">
+                    {groupItems.map((item, idx) => (
+                      <motion.div
+                        key={`${item.title}-${idx}`}
+                        initial={{ opacity: 0, x: -5 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.03 }}
+                        className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50"
+                        data-testid={`history-item-${idx}`}
+                      >
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${item.type === "task" ? "bg-blue-100" : "bg-emerald-100"
+                          }`}>
+                          {item.type === "task" ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
+                          ) : (
+                            <Target className="w-3.5 h-3.5 text-emerald-600" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-slate-800 truncate">{item.title}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${item.type === "task"
+                                ? "bg-blue-50 text-blue-600"
+                                : "bg-emerald-50 text-emerald-600"
+                              }`}>
+                              {item.type === "task" ? "Task" : "Goal"}
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              {new Date(item.completed_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-xs font-bold bdy-text">{item.progress}%</span>
+                      </motion.div>
+                    ))}
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         )}
       </div>

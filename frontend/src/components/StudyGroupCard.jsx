@@ -63,7 +63,7 @@ export const StudyGroupCard = ({ group }) => {
             {group.invite_code && (
                 <div className="flex items-center gap-2">
                     <span className="text-xs text-slate-400">Code:</span>
-                    <code className="text-xs font-mono font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded">
+                    <code className="text-xs font-mono font-semibold bdy-text bdy-soft px-2 py-0.5 rounded">
                         {group.invite_code}
                     </code>
                     <button

@@ -48,7 +48,7 @@ const ProtectedRoute = ({ children }) => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-full">
-        <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
+        <Loader2 className="h-6 w-6 animate-spin bdy-text" />
       </div>
     );
   }
@@ -67,7 +67,7 @@ const GuestRoute = ({ children }) => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-full">
-        <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
+        <Loader2 className="h-6 w-6 animate-spin bdy-text" />
       </div>
     );
   }
@@ -133,7 +133,7 @@ const Shell = () => {
 const AuthLoadingScreen = () => (
   <PhoneFrame>
     <div className="flex items-center justify-center min-h-full">
-      <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+      <Loader2 className="h-8 w-8 animate-spin bdy-text" />
     </div>
   </PhoneFrame>
 );

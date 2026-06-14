@@ -441,7 +441,7 @@ async def get_active_challenges() -> list:
 
 
 async def create_challenge(title: str, description: str, challenge_type: str,
-                           criteria: dict, badge_id: str) -> dict:
+                           criteria: dict, badge_id: str, creator_id: str = None) -> dict:
     """Create a weekly community challenge (Monday 00:00 UTC to Sunday 23:59 UTC)."""
     now = datetime.now(timezone.utc)
     # Find the current week's Monday 00:00 UTC
@@ -462,6 +462,7 @@ async def create_challenge(title: str, description: str, challenge_type: str,
         "participants": [],
         "badge_id": badge_id,
         "xp_reward": CHALLENGE_XP_REWARD,
+        "creator_id": creator_id,
     }
     await db[CHALLENGES_COLLECTION].insert_one(challenge)
     challenge.pop("_id", None)
@@ -581,6 +582,96 @@ async def update_challenge_progress(user_id: str, challenge_id: str, progress: f
         return await complete_challenge(user_id, challenge_id)
 
     challenge.pop("_id", None)
+    return challenge
+
+
+async def complete_challenge_with_reflection(user_id: str, challenge_id: str,
+                                             mood: int | None = None,
+                                             reflection: str | None = None) -> dict | None:
+    """
+    Mark a challenge as completed with optional mood and reflection.
+    Awards 50 XP + challenge-specific badge.
+    """
+    challenge = await db[CHALLENGES_COLLECTION].find_one({"id": challenge_id})
+    if not challenge:
+        return None
+
+    # Check user is a participant
+    participants = challenge.get("participants", [])
+    participant = next((p for p in participants if p["user_id"] == user_id), None)
+    if not participant:
+        return None
+
+    if participant.get("completed"):
+        return {"status": "already_completed"}
+
+    # Build update for participant
+    update_fields = {
+        "participants.$.completed": True,
+        "participants.$.progress": 100,
+        "participants.$.completed_at": now_iso(),
+    }
+    if mood is not None:
+        update_fields["participants.$.mood"] = mood
+    if reflection:
+        update_fields["participants.$.reflection"] = reflection
+
+    await db[CHALLENGES_COLLECTION].update_one(
+        {"id": challenge_id, "participants.user_id": user_id},
+        {"$set": update_fields}
+    )
+
+    # Award 50 XP directly to gamification doc
+    await db[GAMIFICATION_COLLECTION].update_one(
+        {"user_id": user_id},
+        {"$inc": {"total_xp": CHALLENGE_XP_REWARD}},
+        upsert=True,
+    )
+
+    # Award badge
+    badge_id = challenge.get("badge_id")
+    if badge_id:
+        badge = {
+            "id": badge_id,
+            "name": f"Challenge: {challenge['title']}",
+            "earned_at": now_iso(),
+        }
+        await db[GAMIFICATION_COLLECTION].update_one(
+            {"user_id": user_id},
+            {"$push": {"achievements": badge}},
+            upsert=True,
+        )
+
+    return {
+        "status": "completed",
+        "xp_awarded": CHALLENGE_XP_REWARD,
+        "badge_id": badge_id,
+        "challenge_title": challenge["title"],
+    }
+
+
+async def close_challenge(user_id: str, challenge_id: str) -> dict | None:
+    """
+    Close a challenge early. Only the creator can close.
+    Sets ended_early flag and updates end_date to now.
+    """
+    challenge = await db[CHALLENGES_COLLECTION].find_one({"id": challenge_id})
+    if not challenge:
+        return None
+
+    # Check if the user is the creator
+    if challenge.get("creator_id") != user_id:
+        return {"error": "Only the challenge creator can close it"}
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db[CHALLENGES_COLLECTION].update_one(
+        {"id": challenge_id},
+        {"$set": {"ended_early": True, "end_date": now}}
+    )
+
+    challenge.pop("_id", None)
+    challenge["ended_early"] = True
+    challenge["end_date"] = now
     return challenge
 
 

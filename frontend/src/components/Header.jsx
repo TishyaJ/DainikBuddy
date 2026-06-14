@@ -34,7 +34,7 @@ export const Header = ({ title, subtitle, gradient = false }) => {
               data-testid="xp-level-indicator"
               onClick={() => nav("/profile")}
               aria-label={`Level ${status.level}, ${status.total_xp} XP. View profile for details.`}
-              className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${gradient ? "bg-white/20 text-white" : "bg-purple-100 text-purple-700"
+              className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${gradient ? "bg-white/20 text-white" : "bdy-soft bdy-text"
                 }`}
             >
               <Zap className="w-3.5 h-3.5" /> Lv{status.level}
@@ -51,6 +51,7 @@ export const Header = ({ title, subtitle, gradient = false }) => {
           <button
             onClick={() => nav("/profile")}
             data-testid="user-avatar"
+            aria-label="View your profile"
             className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 text-white text-sm font-bold flex items-center justify-center ring-2 ring-white active:scale-95 transition"
           >
             {profile.avatar_initial || "A"}

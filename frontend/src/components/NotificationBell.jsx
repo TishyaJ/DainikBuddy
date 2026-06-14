@@ -11,9 +11,10 @@ export const NotificationBell = ({ gradient = false }) => {
         <button
             data-testid="notification-bell"
             onClick={() => nav("/notifications")}
+            aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
             className={`relative w-9 h-9 rounded-full flex items-center justify-center ${gradient
-                    ? "bg-white/20 text-white"
-                    : "bg-white text-slate-700 border border-slate-200"
+                ? "bg-white/20 text-white"
+                : "bg-white text-slate-700 border border-slate-200"
                 }`}
         >
             <Bell className="w-4 h-4" />
