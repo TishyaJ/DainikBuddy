@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { api } from "../lib/api";
+import { useAuth } from "./AuthContext";
 
 const GamificationContext = createContext({
     status: null,
@@ -12,6 +13,7 @@ const GamificationContext = createContext({
 });
 
 export const GamificationProvider = ({ children }) => {
+    const { isAuthenticated, isLoading: authLoading } = useAuth();
     const [status, setStatus] = useState(null);
     const [achievements, setAchievements] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -20,6 +22,15 @@ export const GamificationProvider = ({ children }) => {
     const prevLevelRef = useRef(null);
 
     const fetchStatus = useCallback(async () => {
+        // Don't fetch if not authenticated
+        if (!isAuthenticated) {
+            setStatus(null);
+            setAchievements(null);
+            setLoading(false);
+            setError(null);
+            prevLevelRef.current = null;
+            return;
+        }
         try {
             setLoading(true);
             setError(null);
@@ -40,19 +51,29 @@ export const GamificationProvider = ({ children }) => {
             setStatus(newStatus);
             setAchievements(newAchievements);
         } catch (err) {
-            setError(err?.response?.data?.detail || "Failed to load gamification data");
+            // If 401, don't show error — user will be redirected to login
+            if (err?.response?.status === 401) {
+                setStatus(null);
+                setAchievements(null);
+                setError(null);
+            } else {
+                setError(err?.response?.data?.detail || "Failed to load gamification data");
+            }
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [isAuthenticated]);
 
     const dismissLevelUp = useCallback(() => {
         setShowLevelUp(false);
     }, []);
 
+    // Fetch when auth state changes (login/logout/token cleared)
     useEffect(() => {
-        fetchStatus();
-    }, [fetchStatus]);
+        if (!authLoading) {
+            fetchStatus();
+        }
+    }, [fetchStatus, authLoading]);
 
     // Auto-dismiss level-up overlay after 3 seconds
     useEffect(() => {

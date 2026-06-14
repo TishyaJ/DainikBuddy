@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { api } from "../lib/api";
+import { useAuth } from "./AuthContext";
 
 const NotificationContext = createContext({
     notifications: [],
@@ -13,6 +14,7 @@ const NotificationContext = createContext({
 });
 
 export const NotificationProvider = ({ children }) => {
+    const { isAuthenticated, isLoading: authLoading } = useAuth();
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -21,17 +23,30 @@ export const NotificationProvider = ({ children }) => {
     const pollRef = useRef(null);
 
     const fetchNotifications = useCallback(async () => {
+        if (!isAuthenticated) {
+            setNotifications([]);
+            setUnreadCount(0);
+            setLoading(false);
+            setError(null);
+            return;
+        }
         try {
             setError(null);
             const res = await api.get("/notifications");
             setNotifications(res.data.notifications || []);
             setUnreadCount(res.data.count || 0);
         } catch (err) {
-            setError(err?.response?.data?.detail || "Failed to load notifications");
+            if (err?.response?.status === 401) {
+                setNotifications([]);
+                setUnreadCount(0);
+                setError(null);
+            } else {
+                setError(err?.response?.data?.detail || "Failed to load notifications");
+            }
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [isAuthenticated]);
 
     const fetchPreferences = useCallback(async () => {
         try {
@@ -98,15 +113,32 @@ export const NotificationProvider = ({ children }) => {
         }
     }, [subscribePush]);
 
-    // Initial fetch
+    // Initial fetch when auth state is ready
     useEffect(() => {
-        fetchNotifications();
-        fetchPreferences();
-        requestPermission();
-    }, [fetchNotifications, fetchPreferences, requestPermission]);
+        if (!authLoading) {
+            if (isAuthenticated) {
+                fetchNotifications();
+                fetchPreferences();
+                requestPermission();
+            } else {
+                setNotifications([]);
+                setUnreadCount(0);
+                setPreferences(null);
+                setLoading(false);
+            }
+        }
+    }, [fetchNotifications, fetchPreferences, requestPermission, isAuthenticated, authLoading]);
 
-    // Poll every 60 seconds
+    // Poll every 60 seconds (only when authenticated)
     useEffect(() => {
+        if (!isAuthenticated) {
+            if (pollRef.current) {
+                clearInterval(pollRef.current);
+                pollRef.current = null;
+            }
+            return;
+        }
+
         pollRef.current = setInterval(() => {
             fetchNotifications();
         }, 60000);
@@ -116,7 +148,7 @@ export const NotificationProvider = ({ children }) => {
                 clearInterval(pollRef.current);
             }
         };
-    }, [fetchNotifications]);
+    }, [fetchNotifications, isAuthenticated]);
 
     return (
         <NotificationContext.Provider
