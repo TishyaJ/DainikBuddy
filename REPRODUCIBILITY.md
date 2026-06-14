@@ -74,9 +74,9 @@ You need a cloud MongoDB database. Options:
 
 If using Atlas:
 1. Create a free cluster
-2. Create a database user (remember the username and password!)
-3. Whitelist your IP (or use `0.0.0.0/0` for "allow from anywhere")
-4. Get your connection string (it looks like: `mongodb+srv://username:password@cluster-name.xxxxx.mongodb.net/`)
+2. Create a database user (remember the username and password!) [already done by Tishya, sent request to collaborators, @collaborator please accept it]
+3. Whitelist your IP (or use `0.0.0.0/0` for "allow from anywhere") [already done by Tishya]
+4. Get your connection string (it looks like: `mongodb+srv://username:password@cluster-name.xxxxx.mongodb.net/`) [already done by Tishya, sent request to collaborators, @collaborator please accept it]
 
 ### 5. At Least ONE AI API Key
 
@@ -91,7 +91,7 @@ The app needs an LLM API for the chat feature. Get at least one:
 ## Clone the Repository
 
 ```bash
-git clone <your-repo-url> PocketBuddy
+git clone <https://github.com/TishyaJ/DainikBuddy.git> PocketBuddy
 cd PocketBuddy
 ```
 
@@ -148,11 +148,12 @@ You'll know it worked when you see `(venv)` at the start of your terminal prompt
 pip install -r requirements.txt
 ```
 
-This installs ~40 packages. Should take 1-3 minutes. If you see red errors about "Microsoft Visual C++ required," install the Visual Studio Build Tools from https://visualstudio.microsoft.com/visual-cpp-build-tools/
+This installs ~40 packages. Should take 1-7 minutes. If you see red errors about "Microsoft Visual C++ required," install the Visual Studio Build Tools from https://visualstudio.microsoft.com/visual-cpp-build-tools/
 
 Verify:
 ```bash
 python -c "import fastapi; import motor; import bcrypt; print('All good!')"
+# Use py or py -m instead of python if 'python *' commands don't work
 # Should print: All good!
 ```
 
@@ -459,12 +460,12 @@ npm run build
 
 ```bash
 # Create a feature branch
-git checkout -b feature/my-feature
+git checkout -b feature-branch
 
 # Make changes, then:
 git add <specific-files>
 git commit -m "feat: description of what you added"
-git push -u origin feature/my-feature
+git push -u origin feature-branch
 
 # Then create a Pull Request on GitHub/GitLab
 ```
