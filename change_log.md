@@ -756,3 +756,83 @@ The AxiosError: timeout of 30000ms exceeded issue on the frontend was caused by 
 
 ### Summary
 Fixed the frontend Axios timeout error by resolving a backend deadlock. Restored the FastAPI streaming chat endpoint, allowing the AI orchestrator to successfully stream SSE responses back to the frontend without hanging.
+
+
+---
+
+## Session: June 14, 2026 — AI Engine Enhancement (Multi-Provider LLM)
+
+### Files Created
+| File | Description |
+|------|-------------|
+| `backend/emergentintegrations/llm/_models.py` | Shared data models: `AdapterConfig`, `UsageInfo`, `StreamEvent`, `FALLBACK_MESSAGES` dict, `PROVIDER_ENV_KEYS` mapping, `SUPPORTED_PROVIDERS` frozenset, `_resolve_api_key()` (priority: constructor > env var > EMERGENT_LLM_KEY), `ConfigurationError` exception |
+| `backend/emergentintegrations/llm/_adapters.py` | Provider adapters implementing `ProviderAdapter` protocol: `OpenAIAdapter` (AsyncOpenAI streaming), `AnthropicAdapter` (message_start → content_block_delta → message_stop), `GeminiAdapter` (generate_content_async, role mapping), `GroqAdapter` (OpenAI-compatible) |
+| `backend/emergentintegrations/llm/_fallback.py` | Automatic fallback chain: if primary provider fails (timeout, rate limit, API error), tries next in chain; domain-appropriate fallback messages when all providers fail |
+| `backend/emergentintegrations/llm/_safety.py` | Content safety filtering applied before LLM prompts; prevents injection and ensures safe outputs |
+| `backend/emergentintegrations/llm/_cache.py` | Response caching layer to reduce API costs for repeated/similar queries |
+| `backend/emergentintegrations/llm/chat.py` | Rewritten `LlmChat` class — main interface with `.with_model(provider, model)`, streaming support, conversation history, temperature/max_tokens control, cache integration |
+| `backend/tests/test_ai_adapters.py` | Unit tests for provider adapter message formatting and stream behavior |
+| `backend/tests/test_ai_cache.py` | Unit tests for response cache hit/miss/expiry |
+| `backend/tests/test_ai_engine_properties.py` | Property-based tests (Hypothesis) for provider routing and message formatting correctness |
+| `backend/tests/test_ai_fallback.py` | Unit tests for fallback chain behavior on provider failures |
+| `backend/tests/test_ai_integration.py` | Integration tests for full LlmChat flow with mocked providers |
+| `backend/tests/test_ai_safety.py` | Unit tests for content safety filter |
+
+### Summary
+Replaced the non-functional LLM shim with a production-ready multi-provider AI engine. The engine supports 4 providers (OpenAI, Anthropic, Gemini, Groq) with automatic fallback, content safety filtering, response caching, and provider-specific message formatting. All implemented via `_adapters.py`, `_fallback.py`, `_safety.py`, `_cache.py`, and `_models.py` modules.
+
+---
+
+## Session: June 14, 2026 — AI Insights Enhancement (insights_service.py)
+
+### Files Created
+| File | Description |
+|------|-------------|
+| `backend/insights_service.py` | AI-powered insights engine with three service classes: `WeeklyReviewService` (real domain scores from context_engine, week-over-week trends via `weekly_scores` collection, LLM-generated highlights with 5s timeout + grounding validation, focus recommendations, caching via `weekly_insights` collection), `DailyInsightsService` (3 personalized insight cards with LLM-enhanced text, `data_reference` field, fallback to rule-based, onboarding support), `CommandCenterService` (daily briefing with summary + actions + cross-domain nudge). Shared utilities: `_call_llm_with_timeout` (asyncio.wait_for), `_validate_grounding` (numeric reference check), `_get_iso_week`, `_extract_numbers_from_dict` |
+
+### Summary
+Created the AI insights service layer that transforms hardcoded/template insights into LLM-powered, data-grounded features. Uses Groq Llama 3.3 70B with timeout enforcement (3-5s), grounding validation (ensures generated text references actual user numbers), and rule-based fallbacks. Caches weekly reviews per ISO week and daily insights per date.
+
+---
+
+## Session: June 14, 2026 — Intelligent Discover Module (Food & Travel Services)
+
+### Files Created
+| File | Description |
+|------|-------------|
+| `backend/discover_food_service.py` | AI food recommendation service: `FoodRecommendationService` class with `get_recommendations(user_id)` orchestrating context build (dietary, budget, cuisines, location, time_of_day) → cache check → Groq LLM call → JSON parse → budget/dietary filtering → cache store (6h TTL). Uses `FOOD_SYSTEM_PROMPT` for Indian college food spots. No hardcoded fallback. |
+| `backend/discover_travel_service.py` | AI route comparison service: `TravelService` class with `get_routes(source, destination, user_id)` orchestrating normalized cache check → Groq LLM estimation → deterministic fare formula fallback. Formula uses real Indian rates (Auto ₹25+₹15/km, Bus ₹7/km, Metro ₹10+₹3/km cap ₹60, Ola/Uber ₹50+₹10/km). Cached 24h in MongoDB `route_cache`. |
+| `backend/tests/test_food_service.py` | Unit tests for food service: context building, dietary filtering, budget filtering, cache behavior |
+| `backend/tests/test_travel_service.py` | Unit tests for travel service: fare formula determinism, mode constraints (no Rickshaw >5km, no Walk >3km), cache lookup |
+
+### Summary
+Implemented intelligent Discover module services replacing static/hardcoded food and travel data with AI-powered, context-aware recommendations. Food service considers user dietary preferences, budget, location, and meal time. Travel service provides Indian transport pricing via LLM with a deterministic formula fallback.
+
+---
+
+## Session: June 14, 2026 — Wellness AI Cards & Dynamic Habits
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `backend/server.py` | Added `GET /api/wellness/cards` endpoint (generates AI wellness action cards via Anthropic Claude based on user context — mood, sleep, goals, stress); Added `GET /api/routine/habits` endpoint (dynamic habit tracking — computes sleep/exercise/journal/check-in consistency from last 7 days of actual data); Exercise CRUD endpoints (create/update/start-stop sessions/summary); Profile onboarding endpoint (`POST /api/profile/onboard`) |
+| `frontend/src/pages/WellnessBuddy.jsx` | Updated to consume AI wellness cards from backend; Added dynamic habits display in Routine tab; Connected to real data instead of static placeholders |
+
+### Summary
+Added AI-powered wellness cards (generated by Anthropic Claude with user context injection) and dynamic habit tracking that computes real consistency percentages from MongoDB data. The Wellness Buddy now shows personalized, context-aware action cards and real-time habit progress.
+
+---
+
+## Session: June 14, 2026 — Documentation Update
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `README.md` | Complete rewrite reflecting current architecture: added AI Engine section, updated project structure (Guides/, memory/, test_reports/, .kiro/specs/), added feature specs table with status, updated test count, added AI model assignments |
+| `backend/README.md` | Complete rewrite: added AI engine documentation (emergentintegrations/llm/ modules), added new service files (insights_service, discover_food_service, discover_travel_service), updated endpoint catalog (60+ endpoints including discover/routes, wellness/cards, routine/habits, insights/briefing), added AI engine usage example, added new pitfalls (load_dotenv placement, .env BOM, LLM timeout), updated test count (15 files, 200+ tests) |
+| `frontend/README.md` | Updated component count (26 files), added new pages description (WellnessBuddy AI cards, DiscoverBuddy AI features), added accessibility section (focus-visible, aria-labels, --bdy-dark variants), added new common issues (insights.map, BottomNav positioning) |
+| `change_log.md` | Added entries for AI Engine Enhancement, AI Insights Enhancement, Intelligent Discover Module, Wellness AI Cards, and this documentation update |
+| `diary.md` | Added entries for AI engine architecture decisions, insights service design, and discover module implementation |
+
+### Summary
+Updated all documentation to reflect the current workspace state including: multi-provider AI engine, AI-powered insights service, intelligent discover module (food + travel), wellness AI cards, dynamic habit tracking, new Guides/ and memory/ folders, test_reports/, and 4 feature specs. All README files now accurately describe the codebase as of this session.

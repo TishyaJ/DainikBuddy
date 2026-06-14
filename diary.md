@@ -937,3 +937,136 @@ Investigated and fixed an issue where all 4 chatbots were throwing AxiosError: t
 ### Current State
 - **Tasks completed**: Backend streaming fix ✓
 - **All AI Chatbots functioning**: Responses stream correctly to the UI.
+
+
+---
+
+## June 14, 2026 — AI Engine Enhancement: Multi-Provider Architecture
+
+### What happened
+Replaced the non-functional `emergentintegrations/llm/chat.py` shim with a full production-ready multi-provider AI engine. This was the `ai-engine-enhancement` spec — all tasks completed.
+
+### Architecture Decisions
+
+**Why multiple providers instead of one:**
+PocketBuddy assigns different AI providers to different buddies (Finance → OpenAI, Wellness → Anthropic, Discover → Gemini, Helper → OpenAI, Insights/Food/Travel → Groq). This is intentional:
+- Each provider has different strengths (Anthropic for empathetic wellness, Gemini for multimodal discovery, Groq for fast/cheap batch processing)
+- Provider diversity means no single API outage kills all features
+- Cost optimization — Groq's Llama 3.3 is significantly cheaper for non-critical calls like insights generation
+
+**Provider Adapter Protocol:**
+Each adapter implements `stream_completion` and `format_messages`. This abstraction means `LlmChat` doesn't need to know which provider it's talking to — it just calls the protocol methods. Adding a new provider (e.g., Mistral, Cohere) is a single file change.
+
+**Fallback chain design:**
+When a provider fails (timeout, rate limit, 500), the engine automatically tries the next provider in a configurable chain. This is invisible to calling code. If ALL providers fail, domain-appropriate fallback messages are returned (e.g., Finance buddy gets a "I'm having trouble connecting, but here's what I'd suggest based on your recent spending..." message).
+
+**Safety filter placement:**
+Content safety runs BEFORE the prompt reaches any provider, not after. This prevents sending problematic content to third-party APIs in the first place. The filter is lightweight (regex + blocklist based) and doesn't add noticeable latency.
+
+**Response caching:**
+For deterministic-ish calls (insights generation, food recommendations), responses are cached with TTL. This dramatically reduces API costs — a user refreshing their daily insights 10 times only triggers 1 LLM call. Cache keys include user_id + relevant context hash so different users don't get each other's insights.
+
+### Current State
+- **AI Engine spec: COMPLETE** (all required tasks done)
+- **6 new test files** covering adapters, cache, fallback, safety, integration, and property-based tests
+- All 4 provider adapters working (OpenAI, Anthropic, Gemini, Groq)
+
+---
+
+## June 14, 2026 — AI Insights Enhancement: LLM-Powered Weekly Review & Daily Insights
+
+### What happened
+Created `insights_service.py` — the AI intelligence layer that transforms PocketBuddy's insights from template-driven outputs into genuinely personalized, data-grounded AI features. This is the `ai-insights-enhancement` spec (in progress).
+
+### Architecture Decisions
+
+**Three service classes in one module:**
+`WeeklyReviewService`, `DailyInsightsService`, and `CommandCenterService` all live in `insights_service.py`. They share utilities (`_call_llm_with_timeout`, `_validate_grounding`) and follow the same pattern (cache → context → LLM → validate → fallback). Separating them into 3 files would create 3 near-duplicate utility sections.
+
+**Grounding validation:**
+A key design principle: every LLM-generated insight must reference at least one real number from the user's data. The `_validate_grounding` function recursively extracts all numeric values from the assembled context, then checks if the generated text contains any of them. If the LLM hallucinates numbers not in the context, the system falls back to rule-based generation.
+
+This is a pragmatic anti-hallucination measure. We can't verify the LLM's reasoning, but we CAN verify it's referencing real data. A highlight that says "Spent ₹2,100 on food" is trustworthy if ₹2,100 appears in the user's expense data. One that says "Spent ₹5,000 on entertainment" when no such number exists gets rejected.
+
+**LLM timeout enforcement via asyncio.wait_for:**
+Each LLM call has a strict timeout (3s for daily insights, 5s for weekly highlights/focus). If the LLM is slow (network issues, provider overload), the system falls back to rule-based generation rather than making the user wait. This ensures the insights endpoints always respond within 5-8 seconds regardless of LLM health.
+
+**Week-over-week trends using stored scores:**
+Rather than fetching 14 days of raw data and computing two full contexts, the system stores each week's computed scores in a `weekly_scores` collection. When computing trends, it just looks up last week's stored scores and subtracts. This is faster and more reliable than re-computing old contexts (which might reference data that's been deleted).
+
+**Data sufficiency as a first-class response field:**
+Every insights response includes `data_sufficiency: "full" | "partial" | "insufficient" | "onboarding"`. This lets the frontend render appropriate UI (full confidence, "keep logging" nudges, or onboarding prompts) without guessing about data quality.
+
+### Current State
+- **AI Insights spec: IN PROGRESS** (service classes written, endpoint wiring partially done)
+- `WeeklyReviewService` and `DailyInsightsService` are feature-complete in the module
+- `CommandCenterService` briefing endpoint needs wiring
+
+---
+
+## June 14, 2026 — Intelligent Discover Module: AI Food & Travel
+
+### What happened
+Replaced static hardcoded food/travel data with AI-powered services. This is the `intelligent-discover-module` spec (in progress).
+
+### Architecture Decisions
+
+**Food recommendations — NO hardcoded fallback:**
+When the LLM fails to generate food recommendations, the system returns an empty array — not a hardcoded list of generic restaurants. This is intentional per the spec. Showing "Pizza Hut, McDonalds, Subway" as fallback would be misleading for users near colleges in tier-2 Indian cities. Better to show nothing and let the user retry than show irrelevant suggestions.
+
+**Travel pricing — deterministic formula as fallback:**
+Unlike food, travel pricing HAS a reliable fallback: known fare structures. Indian auto fares (₹25 base + ₹15/km), metro fares (₹10 base + ₹3/km cap ₹60), and bus fares (₹7/km) are well-established. So when the LLM can't estimate, the system computes with formulas using a default 5km distance. This always produces reasonable results.
+
+**Context-aware food recommendations:**
+The food service builds a context from multiple sources before calling the LLM:
+- `user_food_preferences` collection → dietary (veg/non-veg/vegan), budget per meal, cuisine preferences
+- `users` collection → college, city (for location-specific recommendations)
+- Time of day (computed at request time) → breakfast/lunch/evening/dinner appropriate suggestions
+
+This means the same user gets different recommendations at 8 AM (idli/dosa spots, tea stalls) vs 8 PM (budget restaurants, dhabas).
+
+**Cache strategy difference between food (6h) and travel (24h):**
+Food recommendations change with time of day and are somewhat mood-dependent, so 6h TTL ensures they refresh across meal times. Travel routes between the same points rarely change day-to-day, so 24h TTL is appropriate and reduces API costs.
+
+**Input normalization for cache hits:**
+Travel routes normalize source/destination (`strip().lower()`) before cache lookup. This means "Hostel" and "hostel" and "  Hostel  " all hit the same cache entry. Food uses a composite key `{user_id}_{time_of_day}_{dietary}` to cache per-user-per-meal-period.
+
+### Current State
+- **Discover spec: IN PROGRESS** (food + travel services implemented, endpoint wiring partially done)
+- ObjectId serialization bug fixed (Task 1.1)
+- Food and travel services tested
+- Frontend DiscoverBuddy integration pending
+
+---
+
+## June 14, 2026 — Project Structure Evolution
+
+### New directories since original documentation
+
+**`Guides/`** — Research and planning documents:
+- `deep-research-report.md` — Comprehensive student behavior research with evidence-based feature analysis, user personas, market landscape
+- `discover-domain-tasks.md` — Detailed analysis of Discover module problems and improvement plan
+- PDF/HTML assets — UI mockups and feature requirement visuals
+
+**`memory/`** — Project memory:
+- `PRD.md` — Original product requirements document preserving initial scope and architecture decisions from the first implementation sprint
+
+**`test_reports/`** — Integration test iterations:
+- JSON files tracking end-to-end test results across 4 iterations
+- Documents what was tested, what passed, and action items per iteration
+
+**`.kiro/specs/`** — Now has 4 feature specs:
+1. `pocketbuddy-ai-enhancement` — Core features (COMPLETE): auth, gamification, context engine, chat, notifications, social, analytics, offline/PWA
+2. `ai-engine-enhancement` — Multi-provider LLM engine (COMPLETE): adapters, fallback, safety, cache
+3. `ai-insights-enhancement` — AI-powered insights (IN PROGRESS): weekly review, daily insights, command center
+4. `intelligent-discover-module` — Smart discover (IN PROGRESS): food, travel, campus
+
+### Backend growth
+The backend grew from the original `server.py` + 5 service modules to:
+- 1 main server file (~1200 lines)
+- 5 router files (auth, analytics, notification, social, gamification)
+- 10 service modules (auth, gamification, categorization, context_engine, conversation_memory, notification, social, analytics, insights, discover_food, discover_travel)
+- 7 AI engine modules (chat, _adapters, _fallback, _safety, _cache, _models, __init__)
+- 15 test files (200+ tests)
+
+This represents a mature, well-structured backend with clear separation of concerns.
