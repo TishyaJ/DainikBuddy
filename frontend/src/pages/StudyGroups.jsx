@@ -6,21 +6,137 @@ import { StudyGroupCard } from "../components/StudyGroupCard";
 import { InviteCodeInput } from "../components/InviteCodeInput";
 import { CommunityChallenges } from "../components/CommunityChallenges";
 import { EmptyState } from "../components/EmptyState";
+import { ExerciseTracker } from "../components/Exercise";
 import {
     ArrowLeft,
     Plus,
     UserPlus,
     Users,
     X,
+    Sparkles,
+    Target,
+    Dumbbell,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import PageTransition from "../components/PageTransition";
 import { SkeletonList } from "../components/Skeleton";
+import { Card } from "../components/SubTabs";
 
 const TABS = [
     { key: "groups", label: "My Groups" },
     { key: "challenges", label: "Challenges" },
+    { key: "goals", label: "Goals" },
+    { key: "fitness", label: "Fitness" },
 ];
+
+const GoalsTab = () => {
+    const [goals, setGoals] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [newTitle, setNewTitle] = useState("");
+    const [newTarget, setNewTarget] = useState("");
+    const [expandedId, setExpandedId] = useState(null);
+    const [updating, setUpdating] = useState(null);
+
+    const load = useCallback(async () => {
+        try {
+            const r = await api.get("/goals");
+            setGoals(r.data);
+        } catch { /* */ } finally { setLoading(false); }
+    }, []);
+
+    useEffect(() => { load(); }, [load]);
+
+    const addGoal = async () => {
+        if (!newTitle.trim()) return;
+        const target = parseFloat(newTarget) || 100;
+        await api.post("/goals", { title: newTitle.trim(), target, current: 0, unit: "%" });
+        setNewTitle(""); setNewTarget("");
+        load();
+    };
+
+    const handleProgress = async (id, val) => {
+        setUpdating(id);
+        try {
+            await api.patch(`/goals/${id}`, { current: val });
+            setGoals((prev) => prev.map((g) => g.id === id ? { ...g, current: val } : g));
+        } catch { /* */ } finally { setUpdating(null); }
+    };
+
+    const handleArchive = async (id) => {
+        await api.patch(`/goals/${id}`, { status: "done" });
+        setGoals((prev) => prev.filter((g) => g.id !== id));
+    };
+
+    const handleDelete = async (id) => {
+        if (!window.confirm("Delete this goal permanently?")) return;
+        await api.delete(`/goals/${id}`);
+        setGoals((prev) => prev.filter((g) => g.id !== id));
+    };
+
+    const active = goals.filter(g => g.status === "active");
+
+    return (
+        <div className="px-5 space-y-3">
+            <Card>
+                <h3 className="font-display font-bold text-base">My Goals</h3>
+                {loading ? <SkeletonList count={3} /> : active.length === 0 ? (
+                    <EmptyState icon={Target} title="No goals yet" description="Set a goal to track your progress with accountability." />
+                ) : (
+                    <div className="mt-3 space-y-2" data-testid="social-goals-list">
+                        {active.map((g) => {
+                            const pct = g.target > 0 ? Math.min(100, Math.round((g.current / g.target) * 100)) : 0;
+                            const expanded = expandedId === g.id;
+                            return (
+                                <div key={g.id} className="p-2 rounded-xl bg-slate-50">
+                                    <div className="flex justify-between text-sm cursor-pointer" onClick={() => setExpandedId(expanded ? null : g.id)}
+                                        role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") setExpandedId(expanded ? null : g.id); }}>
+                                        <span className="font-semibold">{g.title}</span>
+                                        <span className="bdy-text font-bold">{pct}%</span>
+                                    </div>
+                                    <div className="h-2 mt-1 rounded-full bg-slate-100">
+                                        <div className="h-full bdy-bg rounded-full transition-all" style={{ width: `${pct}%` }} />
+                                    </div>
+                                    {expanded && (
+                                        <div className="mt-2 pt-2 border-t border-slate-200">
+                                            <div className="flex justify-between text-xs text-slate-500 mb-1">
+                                                <span>{g.current} / {g.target} {g.unit || ""}</span>
+                                                <span className="bdy-text font-semibold">{pct}%</span>
+                                            </div>
+                                            <input type="range" min="0" max={g.target} step={g.target >= 100 ? 1 : 0.5}
+                                                value={g.current}
+                                                onChange={(e) => setGoals((p) => p.map((x) => x.id === g.id ? { ...x, current: parseFloat(e.target.value) } : x))}
+                                                onMouseUp={(e) => handleProgress(g.id, parseFloat(e.target.value))}
+                                                onTouchEnd={(e) => handleProgress(g.id, parseFloat(e.target.value))}
+                                                className="bdy-slider w-full" disabled={updating === g.id} />
+                                        </div>
+                                    )}
+                                    {pct >= 100 && (
+                                        <div className="mt-2 flex gap-2">
+                                            <button onClick={() => handleArchive(g.id)} className="flex-1 py-1.5 rounded-lg text-xs font-semibold text-white bdy-bg">Archive</button>
+                                            <button onClick={() => handleDelete(g.id)} className="flex-1 py-1.5 rounded-lg text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-200">Delete</button>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+                <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
+                    <div className="flex gap-2">
+                        <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Goal title"
+                            aria-label="Enter goal title" className="flex-1 bg-slate-50 rounded-xl px-3 py-2.5 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
+                        <input type="number" min="0" value={newTarget} onChange={(e) => setNewTarget(e.target.value)} placeholder="Target"
+                            aria-label="Enter goal target" className="w-20 bg-slate-50 rounded-xl px-2 py-2.5 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
+                    </div>
+                    <button onClick={addGoal} disabled={!newTitle.trim()}
+                        className="w-full bdy-bg text-white font-semibold py-2.5 rounded-xl flex items-center justify-center gap-1 disabled:opacity-50 active:scale-95">
+                        <Plus className="w-4 h-4" /> Add Goal
+                    </button>
+                </div>
+            </Card>
+        </div>
+    );
+};
 
 const StudyGroups = () => {
     const nav = useNavigate();
@@ -153,6 +269,20 @@ const StudyGroups = () => {
             {activeTab === "challenges" && (
                 <div className="mt-3">
                     <CommunityChallenges />
+                </div>
+            )}
+
+            {/* Goals tab */}
+            {activeTab === "goals" && (
+                <div className="mt-3">
+                    <GoalsTab />
+                </div>
+            )}
+
+            {/* Fitness tab */}
+            {activeTab === "fitness" && (
+                <div className="mt-3">
+                    <ExerciseTracker />
                 </div>
             )}
 

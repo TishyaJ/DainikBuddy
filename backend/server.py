@@ -802,7 +802,8 @@ async def submit_phq2(payload: Dict[str, Any], user_id: str = Depends(get_curren
             api_key=EMERGENT_LLM_KEY,
             session_id=f"{user_id}-phq2-{entry['id']}",
             system_message=sys_prompt,
-        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+            buddy_type="wellness",
+        ).with_model("groq", "llama-3.3-70b-versatile")
         full = ""
         async for ev in chat.stream_message(UserMessage(text=user_msg)):
             if isinstance(ev, TextDelta):
@@ -861,6 +862,88 @@ async def social_connections(user_id: str = Depends(get_current_user)):
         "connections_this_week": len(all_members),
         "groups": [{"name": g.get("name", ""), "member_count": len(g.get("members", []))} for g in groups[:5]],
         "upcoming_events": [{"name": c.get("title", ""), "deadline": c.get("end_date", "")} for c in challenges[:3]],
+    }
+
+
+@api_router.get("/wellness/activity-overview")
+async def wellness_activity_overview(user_id: str = Depends(get_current_user)):
+    """Intelligent wellness activity overview pulling from ALL domains:
+    moods, journals, sleep, exercises, focus sessions, check-ins."""
+    today = datetime.now(timezone.utc)
+    seven_days_ago = (today - timedelta(days=7)).isoformat()
+    today_start = today.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+    # Fetch all relevant data concurrently
+    (moods, journals, sleep_entries, exercises_list, exercise_sessions_7d,
+     focus_sessions_7d, focus_today) = await asyncio.gather(
+        db.mood_entries.find({"user_id": user_id, "created_at": {"$gte": seven_days_ago}}, {"_id": 0}).to_list(100),
+        db.journal_entries.find({"user_id": user_id, "created_at": {"$gte": seven_days_ago}}, {"_id": 0}).to_list(100),
+        db.sleep_entries.find({"user_id": user_id, "created_at": {"$gte": seven_days_ago}}, {"_id": 0}).to_list(50),
+        db.exercises.find({"user_id": user_id}, {"_id": 0}).to_list(100),
+        db.exercise_sessions.find({"user_id": user_id, "started_at": {"$gte": seven_days_ago}, "ended_at": {"$ne": None}}, {"_id": 0}).to_list(200),
+        db.task_sessions.find({"user_id": user_id, "started_at": {"$gte": seven_days_ago}, "ended_at": {"$ne": None}}, {"_id": 0}).to_list(200),
+        db.task_sessions.find({"user_id": user_id, "started_at": {"$gte": today_start}, "ended_at": {"$ne": None}}, {"_id": 0}).to_list(100),
+    )
+
+    # Compute category minutes for the bar graph
+    # Movement: exercise sessions + exercises with progress
+    exercise_mins = sum(s.get("elapsed_seconds", 0) for s in exercise_sessions_7d) // 60
+    progress_mins = sum(int(e.get("target_minutes", 0) * e.get("progress", 0) / 100) for e in exercises_list if e.get("progress", 0) > 0)
+    movement_mins = max(exercise_mins, progress_mins)
+
+    # Focus: task/pomodoro sessions
+    focus_mins = sum(s.get("elapsed_seconds", 0) for s in focus_sessions_7d) // 60
+    focus_today_mins = sum(s.get("elapsed_seconds", 0) for s in focus_today) // 60
+
+    # Mindfulness: journal entries (approx 5 min each) + mood check-ins (approx 2 min each)
+    mindfulness_mins = len(journals) * 5 + len(moods) * 2
+
+    # Rest: sleep hours converted to quality score (good sleep = restful)
+    rest_mins = sum(s.get("hours", 0) for s in sleep_entries) * 60 // 7  # avg daily rest in minutes (scaled)
+
+    # Compute today's total active minutes
+    today_exercise_mins = sum(
+        s.get("elapsed_seconds", 0) for s in exercise_sessions_7d
+        if s.get("started_at", "") >= today_start
+    ) // 60
+    today_total = today_exercise_mins + focus_today_mins + (len([m for m in moods if m.get("created_at", "") >= today_start]) * 2)
+
+    # Stress and mood context
+    avg_stress = sum(m.get("stress", 50) for m in moods) / len(moods) if moods else 50
+    avg_energy = sum(m.get("energy", 50) for m in moods) / len(moods) if moods else 50
+    avg_sleep_hours = sum(s.get("hours", 7) for s in sleep_entries) / len(sleep_entries) if sleep_entries else 0
+
+    # Build intelligent recommendation based on data
+    suggestion = None
+    if avg_stress > 70:
+        suggestion = {"type": "calm", "text": "Your stress has been high this week. Try a breathing exercise or walk outdoors."}
+    elif avg_energy < 40:
+        suggestion = {"type": "rest", "text": "Low energy detected. Consider a power nap or sleep earlier tonight."}
+    elif focus_mins < 60:
+        suggestion = {"type": "focus", "text": "Low focus time this week. Try a 25-min Pomodoro session to build momentum."}
+    elif movement_mins < 30:
+        suggestion = {"type": "movement", "text": "You've been sedentary this week. A 10-min stretch or walk can boost mood."}
+    elif len(journals) == 0:
+        suggestion = {"type": "reflect", "text": "No journals this week. Writing 3 sentences about your day helps process stress."}
+
+    return {
+        "weekly_chart": {
+            "movement": movement_mins,
+            "focus": focus_mins,
+            "mindfulness": mindfulness_mins,
+            "rest": min(rest_mins, 120),  # cap display at 2h
+        },
+        "today_minutes": today_total,
+        "focus_today": {"sessions": len(focus_today), "minutes": focus_today_mins},
+        "context": {
+            "avg_stress": round(avg_stress),
+            "avg_energy": round(avg_energy),
+            "avg_sleep_hours": round(avg_sleep_hours, 1),
+            "moods_logged": len(moods),
+            "journals_logged": len(journals),
+            "exercises_completed": len([e for e in exercises_list if e.get("progress", 0) >= 100]),
+        },
+        "suggestion": suggestion,
     }
 
 
@@ -956,9 +1039,17 @@ async def exercises_summary(user_id: str = Depends(get_current_user)):
     sessions = await db.exercise_sessions.find(
         {"user_id": user_id, "started_at": {"$gte": today_start}, "ended_at": {"$ne": None}}, {"_id": 0},
     ).to_list(200)
-    today_minutes = sum(s.get("elapsed_seconds", 0) for s in sessions) // 60
+    today_minutes_sessions = sum(s.get("elapsed_seconds", 0) for s in sessions) // 60
 
-    # last 7 days upper vs lower vs full
+    # Also count today's exercises that have progress > 0 (manual tracking)
+    all_exercises = await db.exercises.find({"user_id": user_id}, {"_id": 0}).to_list(100)
+    today_minutes_progress = sum(
+        int(e.get("target_minutes", 0) * e.get("progress", 0) / 100)
+        for e in all_exercises if e.get("progress", 0) > 0
+    )
+    today_minutes = max(today_minutes_sessions, today_minutes_progress)
+
+    # last 7 days upper vs lower vs full — from sessions
     since = (today - timedelta(days=7)).isoformat()
     last7 = await db.exercise_sessions.find(
         {"user_id": user_id, "started_at": {"$gte": since}, "ended_at": {"$ne": None}}, {"_id": 0},
@@ -970,6 +1061,14 @@ async def exercises_summary(user_id: str = Depends(get_current_user)):
     for s in last7:
         part = bp.get(s["exercise_id"], "full")
         by_part[part] = by_part.get(part, 0) + s.get("elapsed_seconds", 0) // 60
+
+    # Also add minutes from exercises with progress > 0 that have NO sessions in last 7 days
+    session_exercise_ids = {s["exercise_id"] for s in last7}
+    for e in all_exercises:
+        if e["id"] not in session_exercise_ids and e.get("progress", 0) > 0:
+            part = e.get("body_part", "full")
+            mins = int(e.get("target_minutes", 0) * e.get("progress", 0) / 100)
+            by_part[part] = by_part.get(part, 0) + mins
 
     # sedentary: less than 20 minutes today is "sedentary warning"
     sedentary = today_minutes < 20
@@ -1076,7 +1175,8 @@ async def _generate_wellness_cards(card_kind: str, user_id: str) -> List[Dict[st
             api_key=EMERGENT_LLM_KEY,
             session_id=f"{user_id}-wellness-cards-{card_kind}",
             system_message=sys,
-        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+            buddy_type="wellness",
+        ).with_model("groq", "llama-3.3-70b-versatile")
         full = ""
         async for ev in chat.stream_message(UserMessage(text=user_msg)):
             if isinstance(ev, TextDelta):
@@ -1106,55 +1206,293 @@ async def wellness_cards(kind: str = "stress", user_id: str = Depends(get_curren
     return await _generate_wellness_cards(kind, user_id)
 
 
+# ============ MESS MENU & FOOD PREFERENCES ============
+@api_router.get("/discover/mess-menu")
+async def get_mess_menu(user_id: str = Depends(get_current_user)):
+    """Get today's mess menu and subscription info."""
+    from datetime import datetime
+    today_day = datetime.now(timezone.utc).strftime("%A").lower()  # monday, tuesday, etc.
+    menu = await db.mess_menus.find_one({"user_id": user_id, "day": today_day}, {"_id": 0})
+    subscription = await db.mess_subscriptions.find_one({"user_id": user_id}, {"_id": 0})
+    all_menus = await db.mess_menus.find({"user_id": user_id}, {"_id": 0}).to_list(7)
+    return {
+        "today": menu,
+        "today_day": today_day,
+        "subscription": subscription,
+        "weekly_menus": all_menus,
+    }
+
+
+@api_router.post("/discover/mess-menu")
+async def set_mess_menu(payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
+    """Set mess menu for a specific day and meal."""
+    day = (payload.get("day") or "").strip().lower()
+    meal = (payload.get("meal") or "").strip().lower()  # breakfast, lunch, dinner
+    items = payload.get("items") or []
+    price = float(payload.get("price") or 0)
+    if not day or not meal:
+        raise HTTPException(400, "Day and meal type required")
+    await db.mess_menus.update_one(
+        {"user_id": user_id, "day": day, "meal": meal},
+        {"$set": {"user_id": user_id, "day": day, "meal": meal, "items": items, "price": price, "updated_at": now_iso()}},
+        upsert=True,
+    )
+    return {"status": "saved", "day": day, "meal": meal}
+
+
+@api_router.post("/discover/mess-subscription")
+async def set_mess_subscription(payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
+    """Configure mess subscription (monthly or per-meal)."""
+    sub_type = payload.get("type", "monthly")  # "monthly" or "per_meal"
+    monthly_cost = float(payload.get("monthly_cost") or 0)
+    per_meal_cost = float(payload.get("per_meal_cost") or 0)
+    mess_name = (payload.get("mess_name") or "").strip()
+    await db.mess_subscriptions.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "user_id": user_id,
+            "type": sub_type,
+            "monthly_cost": monthly_cost,
+            "per_meal_cost": per_meal_cost,
+            "mess_name": mess_name,
+            "updated_at": now_iso(),
+        }},
+        upsert=True,
+    )
+    # Auto-create/update a "Mess" budget category if monthly subscription
+    if sub_type == "monthly" and monthly_cost > 0:
+        existing = await db.budget_categories.find_one({"user_id": user_id, "name": {"$regex": "^mess$", "$options": "i"}})
+        if not existing:
+            cat = BudgetCategory(user_id=user_id, name="Mess", allocated=monthly_cost, spent=0)
+            await db.budget_categories.insert_one(cat.model_dump())
+        else:
+            await db.budget_categories.update_one({"id": existing["id"]}, {"$set": {"allocated": monthly_cost}})
+    return {"status": "saved", "type": sub_type}
+
+
+@api_router.get("/discover/food-preferences")
+async def get_food_preferences(user_id: str = Depends(get_current_user)):
+    """Get user's food preferences."""
+    prefs = await db.user_food_preferences.find_one({"user_id": user_id}, {"_id": 0})
+    return prefs or {"dietary": "any", "budget_per_meal": 100, "cuisines": [], "allergies": []}
+
+
+@api_router.post("/discover/food-preferences")
+async def set_food_preferences(payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
+    """Save user's food preferences."""
+    prefs = {
+        "user_id": user_id,
+        "dietary": payload.get("dietary", "any"),  # veg, non-veg, vegan, jain, any
+        "budget_per_meal": float(payload.get("budget_per_meal") or 100),
+        "cuisines": payload.get("cuisines") or [],  # north_indian, south_indian, chinese, street_food, continental
+        "allergies": payload.get("allergies") or [],  # nuts, dairy, gluten
+        "updated_at": now_iso(),
+    }
+    await db.user_food_preferences.update_one(
+        {"user_id": user_id}, {"$set": prefs}, upsert=True,
+    )
+    return prefs
+
+
 # ============ DISCOVER (static seed) ============
 @api_router.get("/discover/food")
 async def discover_food(user_id: str = Depends(get_current_user)):
-    return [
-        {"name": "Mess Express", "price": 50, "rating": 4.3, "distance": "0.2 km", "tag": "Full meal", "image": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400"},
-        {"name": "Roll Zone", "price": 40, "rating": 4.5, "distance": "0.4 km", "tag": "Rolls", "image": "https://images.unsplash.com/photo-1565299507177-b0ac66763828?w=400"},
-        {"name": "Student Thali", "price": 60, "rating": 4.2, "distance": "0.6 km", "tag": "Thali", "image": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=400"},
-        {"name": "Coffee Cart", "price": 25, "rating": 4.1, "distance": "0.1 km", "tag": "Drinks", "image": "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400"},
+    """Return food recommendations filtered by user preferences."""
+    prefs = await db.user_food_preferences.find_one({"user_id": user_id}, {"_id": 0})
+    budget = (prefs or {}).get("budget_per_meal", 200)
+    dietary = (prefs or {}).get("dietary", "any")
+
+    # Mock data pool (will be DB-driven in Phase 5)
+    all_food = [
+        {"name": "Mess Express", "price": 50, "rating": 4.3, "distance": "0.2 km", "tag": "Full meal", "dietary": "veg", "image": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400"},
+        {"name": "Roll Zone", "price": 40, "rating": 4.5, "distance": "0.4 km", "tag": "Rolls", "dietary": "any", "image": "https://images.unsplash.com/photo-1565299507177-b0ac66763828?w=400"},
+        {"name": "Student Thali", "price": 60, "rating": 4.2, "distance": "0.6 km", "tag": "Thali", "dietary": "veg", "image": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=400"},
+        {"name": "Coffee Cart", "price": 25, "rating": 4.1, "distance": "0.1 km", "tag": "Drinks", "dietary": "any", "image": "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400"},
+        {"name": "Chicken Corner", "price": 80, "rating": 4.4, "distance": "0.3 km", "tag": "Non-veg", "dietary": "non-veg", "image": "https://images.unsplash.com/photo-1603360946369-dc9bb6258143?w=400"},
+        {"name": "South Dosa", "price": 45, "rating": 4.6, "distance": "0.5 km", "tag": "South Indian", "dietary": "veg", "image": "https://images.unsplash.com/photo-1630383249896-424e482df921?w=400"},
+        {"name": "Momos Hub", "price": 35, "rating": 4.0, "distance": "0.3 km", "tag": "Chinese", "dietary": "any", "image": "https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?w=400"},
+        {"name": "Juice Bar", "price": 30, "rating": 4.2, "distance": "0.2 km", "tag": "Healthy", "dietary": "vegan", "image": "https://images.unsplash.com/photo-1622597467836-f3285f2131b8?w=400"},
     ]
+
+    # Filter by budget
+    filtered = [f for f in all_food if f["price"] <= budget]
+
+    # Filter by dietary preference
+    if dietary == "veg":
+        filtered = [f for f in filtered if f["dietary"] in ("veg", "vegan")]
+    elif dietary == "vegan":
+        filtered = [f for f in filtered if f["dietary"] == "vegan"]
+    elif dietary == "non-veg":
+        pass  # non-veg users can eat everything
+    # "any" and "jain" get all results (jain filtering would need more data)
+
+    # Sort by rating
+    filtered.sort(key=lambda x: x["rating"], reverse=True)
+
+    return filtered
 
 
 @api_router.get("/discover/travel")
 async def discover_travel(user_id: str = Depends(get_current_user)):
-    return [
-        {"mode": "Metro", "cost": 30, "time": "25 min", "icon": "train", "safe": True},
-        {"mode": "Cycle", "cost": 0, "time": "40 min", "icon": "bike", "safe": True},
-        {"mode": "Rideshare", "cost": 120, "time": "18 min", "icon": "car", "safe": True},
-        {"mode": "Walk", "cost": 0, "time": "55 min", "icon": "footprints", "safe": False},
+    """Return travel route options based on user's saved places."""
+    places = await db.saved_places.find({"user_id": user_id}, {"_id": 0}).to_list(20)
+    # If user has saved places, use first two as default route; otherwise fallback
+    default_from = "Hostel"
+    default_to = "College"
+    if len(places) >= 2:
+        default_from = places[0].get("name", "Hostel")
+        default_to = places[1].get("name", "College")
+
+    # Route options (will be API-driven in future; mock for now with cost/time proportional to distance)
+    routes = [
+        {"mode": "Metro", "cost": 30, "time": "25 min", "icon": "train", "safe": True, "eco": True},
+        {"mode": "Cycle", "cost": 0, "time": "40 min", "icon": "bike", "safe": True, "eco": True},
+        {"mode": "Rideshare", "cost": 120, "time": "18 min", "icon": "car", "safe": True, "eco": False},
+        {"mode": "Walk", "cost": 0, "time": "55 min", "icon": "footprints", "safe": False, "eco": True},
+        {"mode": "Auto", "cost": 60, "time": "20 min", "icon": "car", "safe": True, "eco": False},
     ]
+    return {"routes": routes, "from": default_from, "to": default_to, "saved_places": places}
+
+
+@api_router.get("/discover/saved-places")
+async def get_saved_places(user_id: str = Depends(get_current_user)):
+    """Get user's saved locations."""
+    places = await db.saved_places.find({"user_id": user_id}, {"_id": 0}).to_list(20)
+    return places
+
+
+@api_router.post("/discover/saved-places")
+async def add_saved_place(payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
+    """Add a saved location."""
+    name = (payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "Place name required")
+    place = {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "name": name,
+        "address": (payload.get("address") or "").strip(),
+        "type": payload.get("type", "other"),  # hostel, college, library, market, hospital, other
+        "created_at": now_iso(),
+    }
+    await db.saved_places.insert_one(place)
+    return place
+
+
+@api_router.delete("/discover/saved-places/{place_id}")
+async def delete_saved_place(place_id: str, user_id: str = Depends(get_current_user)):
+    """Delete a saved location."""
+    res = await db.saved_places.delete_one({"id": place_id, "user_id": user_id})
+    return {"deleted": res.deleted_count}
 
 
 @api_router.get("/discover/snacks")
 async def discover_snacks(user_id: str = Depends(get_current_user)):
-    return [
-        {"name": "Almonds + Banana", "nutrition": 9, "budget": 8, "tag": "Brain food"},
-        {"name": "Roasted Chana", "nutrition": 8, "budget": 10, "tag": "Protein"},
-        {"name": "Dark Chocolate", "nutrition": 7, "budget": 6, "tag": "Focus"},
-        {"name": "Greek Yogurt", "nutrition": 9, "budget": 5, "tag": "Calm"},
+    """Return snack suggestions filtered by user food preferences."""
+    prefs = await db.user_food_preferences.find_one({"user_id": user_id}, {"_id": 0})
+    dietary = (prefs or {}).get("dietary", "any")
+
+    all_snacks = [
+        {"name": "Almonds + Banana", "nutrition": 9, "budget": 8, "tag": "Brain food", "dietary": "vegan", "time": "anytime"},
+        {"name": "Roasted Chana", "nutrition": 8, "budget": 10, "tag": "Protein", "dietary": "vegan", "time": "morning"},
+        {"name": "Dark Chocolate", "nutrition": 7, "budget": 6, "tag": "Focus", "dietary": "veg", "time": "afternoon"},
+        {"name": "Greek Yogurt", "nutrition": 9, "budget": 5, "tag": "Calm", "dietary": "veg", "time": "evening"},
+        {"name": "Egg Sandwich", "nutrition": 8, "budget": 7, "tag": "Energy", "dietary": "non-veg", "time": "morning"},
+        {"name": "Peanut Butter Toast", "nutrition": 8, "budget": 9, "tag": "Sustain", "dietary": "vegan", "time": "anytime"},
+        {"name": "Makhana", "nutrition": 7, "budget": 9, "tag": "Light", "dietary": "veg", "time": "evening"},
+        {"name": "Fruit Chaat", "nutrition": 9, "budget": 8, "tag": "Refresh", "dietary": "vegan", "time": "afternoon"},
     ]
+
+    # Filter by dietary preference
+    if dietary == "veg":
+        all_snacks = [s for s in all_snacks if s["dietary"] in ("veg", "vegan")]
+    elif dietary == "vegan":
+        all_snacks = [s for s in all_snacks if s["dietary"] == "vegan"]
+
+    # Time-of-day awareness
+    hour = datetime.now(timezone.utc).hour
+    if hour < 11:
+        all_snacks.sort(key=lambda s: 0 if s["time"] in ("morning", "anytime") else 1)
+    elif hour < 16:
+        all_snacks.sort(key=lambda s: 0 if s["time"] in ("afternoon", "anytime") else 1)
+    else:
+        all_snacks.sort(key=lambda s: 0 if s["time"] in ("evening", "anytime") else 1)
+
+    return all_snacks[:6]
 
 
 @api_router.get("/discover/activities")
 async def discover_activities(user_id: str = Depends(get_current_user)):
-    return [
-        {"name": "5-min stretch", "duration": "5 min", "type": "movement"},
-        {"name": "Box breathing", "duration": "3 min", "type": "calm"},
-        {"name": "Quick sketch", "duration": "10 min", "type": "creative"},
-        {"name": "Walk outdoors", "duration": "15 min", "type": "movement"},
+    """Return activity suggestions based on user's current stress/energy levels."""
+    # Check latest mood to personalize
+    latest_mood = await db.mood_entries.find_one(
+        {"user_id": user_id}, {"_id": 0}, sort=[("created_at", -1)]
+    )
+    stress = (latest_mood or {}).get("stress", 50)
+    energy = (latest_mood or {}).get("energy", 50)
+
+    all_activities = [
+        {"name": "5-min stretch", "duration": "5 min", "type": "movement", "for_stress": True, "for_low_energy": False},
+        {"name": "Box breathing", "duration": "3 min", "type": "calm", "for_stress": True, "for_low_energy": False},
+        {"name": "Quick sketch", "duration": "10 min", "type": "creative", "for_stress": False, "for_low_energy": False},
+        {"name": "Walk outdoors", "duration": "15 min", "type": "movement", "for_stress": True, "for_low_energy": True},
+        {"name": "Power nap", "duration": "20 min", "type": "rest", "for_stress": False, "for_low_energy": True},
+        {"name": "Journaling", "duration": "10 min", "type": "reflect", "for_stress": True, "for_low_energy": False},
+        {"name": "Dance break", "duration": "5 min", "type": "movement", "for_stress": True, "for_low_energy": True},
+        {"name": "Gratitude list", "duration": "3 min", "type": "reflect", "for_stress": False, "for_low_energy": False},
     ]
+
+    # Prioritize based on stress/energy
+    if stress > 65:
+        all_activities.sort(key=lambda a: 0 if a["for_stress"] else 1)
+    elif energy < 40:
+        all_activities.sort(key=lambda a: 0 if a["for_low_energy"] else 1)
+
+    return all_activities[:6]
 
 
 @api_router.get("/discover/campus")
 async def discover_campus(user_id: str = Depends(get_current_user)):
+    """Return campus resources — user-configurable via DB, with defaults."""
+    user_resources = await db.campus_resources.find({"user_id": user_id}, {"_id": 0}).to_list(20)
+    if user_resources:
+        return user_resources
+    # Default resources (seeded)
     return [
-        {"name": "Counseling Center", "type": "wellness", "available": True},
-        {"name": "Peer Tutoring", "type": "study", "available": True},
-        {"name": "Food Pantry", "type": "aid", "available": True},
-        {"name": "Financial Aid Office", "type": "aid", "available": False},
+        {"name": "Counseling Center", "type": "wellness", "available": True, "hours": "9 AM - 5 PM", "contact": ""},
+        {"name": "Peer Tutoring", "type": "study", "available": True, "hours": "10 AM - 6 PM", "contact": ""},
+        {"name": "Food Pantry", "type": "aid", "available": True, "hours": "11 AM - 3 PM", "contact": ""},
+        {"name": "Financial Aid Office", "type": "aid", "available": False, "hours": "Closed weekends", "contact": ""},
+        {"name": "Library", "type": "study", "available": True, "hours": "8 AM - 10 PM", "contact": ""},
+        {"name": "Health Center", "type": "wellness", "available": True, "hours": "24/7 Emergency", "contact": ""},
     ]
+
+
+@api_router.post("/discover/campus")
+async def add_campus_resource(payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
+    """Add a custom campus resource."""
+    name = (payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "Resource name required")
+    resource = {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "name": name,
+        "type": payload.get("type", "other"),
+        "available": payload.get("available", True),
+        "hours": (payload.get("hours") or "").strip(),
+        "contact": (payload.get("contact") or "").strip(),
+        "created_at": now_iso(),
+    }
+    await db.campus_resources.insert_one(resource)
+    return resource
+
+
+@api_router.delete("/discover/campus/{resource_id}")
+async def delete_campus_resource(resource_id: str, user_id: str = Depends(get_current_user)):
+    """Remove a campus resource."""
+    res = await db.campus_resources.delete_one({"id": resource_id, "user_id": user_id})
+    return {"deleted": res.deleted_count}
 
 
 # ============ PROFILE ============

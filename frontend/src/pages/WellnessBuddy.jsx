@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { Header } from "../components/Header";
 import { SubTabs, Card, InsightCard } from "../components/SubTabs";
 import { Moon, Brain, Activity, Calendar, ClipboardList, Timer, Users, Heart, Phone, Sparkles, Play, Pause, Check, Save } from "lucide-react";
@@ -25,13 +26,26 @@ const ScoreRing = ({ score, label }) => {
 
 const Dashboard = ({ onNavigate }) => {
   const [s, setS] = useState(null);
-  useEffect(() => { api.get("/wellness/scores").then((r) => setS(r.data)).catch(() => { }); }, []);
+  const [moodData, setMoodData] = useState([]);
+  const [aiCards, setAiCards] = useState([]);
+  const [loadingCards, setLoadingCards] = useState(true);
+
+  useEffect(() => {
+    api.get("/wellness/scores").then((r) => setS(r.data)).catch(() => { });
+    api.get("/mood/weekly").then((r) => setMoodData(r.data)).catch(() => { });
+    api.get("/wellness/cards?kind=stress").then((r) => { setAiCards(r.data); setLoadingCards(false); }).catch(() => setLoadingCards(false));
+  }, []);
+
   if (!s) return null;
 
+  const moodEmoji = { great: "😄", good: "🙂", okay: "😐", bad: "🙁", terrible: "😢" };
+  const stressAvg = moodData.length ? Math.round(moodData.reduce((sum, d) => sum + (d.stress || 0), 0) / moodData.length) : 0;
+  const worstDay = [...moodData].sort((a, b) => (b.stress || 0) - (a.stress || 0))[0];
+
   const actions = [
-    { i: Brain, t: "Quick Check-in", s: "Track your mood & stress", target: "stress" },
-    { i: Heart, t: "Breathing Exercise", s: "3 min · reduce stress", target: "support" },
-    { i: Timer, t: "Focus Session", s: "25 min Pomodoro", target: "focus" },
+    { i: Brain, t: "Quick Check-in", s: "Track your mood & stress", target: "check" },
+    { i: Heart, t: "Breathing Exercise", s: "3 min · reduce stress", target: "act" },
+    { i: Timer, t: "Focus Session", s: "25 min Pomodoro", target: "act" },
     { i: Moon, t: "Sleep Tips", s: "Improve sleep quality", target: "sleep" },
   ];
 
@@ -44,6 +58,41 @@ const Dashboard = ({ onNavigate }) => {
           <ScoreRing score={s.burnout_score} label="Burnout" />
         </div>
       </Card>
+
+      {/* Weekly Mood (from Stress tab) */}
+      {moodData.length > 0 && (
+        <Card>
+          <h3 className="font-display font-bold text-base">Weekly Mood</h3>
+          <div className="flex justify-between mt-3" data-testid="mood-timeline">
+            {moodData.map((m, i) => (
+              <div key={i} className="flex flex-col items-center">
+                <div className="text-2xl">{moodEmoji[m.mood] || "😐"}</div>
+                <div className="text-[10px] text-slate-500 mt-1">{m.day}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="p-2.5 rounded-xl bg-slate-50">
+              <div className="text-[10px] text-slate-500 font-semibold">AVG STRESS</div>
+              <div className="font-display font-bold text-lg">{stressAvg}/100</div>
+            </div>
+            <div className="p-2.5 rounded-xl bg-slate-50">
+              <div className="text-[10px] text-slate-500 font-semibold">PEAK DAY</div>
+              <div className="font-display font-bold text-lg">{worstDay ? worstDay.day : "—"}</div>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* AI Wellness Cards (from Stress tab) */}
+      <div data-testid="wellness-ai-cards" className="space-y-2">
+        {loadingCards && (
+          <Card><div className="text-xs text-slate-500 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bdy-bg animate-pulse" /> Wellness AI is thinking…</div></Card>
+        )}
+        {aiCards.map((c, i) => <AICard key={i} card={c} />)}
+      </div>
+
+      {/* Daily Wellness Actions */}
       <Card>
         <h3 className="font-display font-bold text-base">Daily Wellness Actions</h3>
         <div className="mt-3 space-y-2">
@@ -51,12 +100,13 @@ const Dashboard = ({ onNavigate }) => {
             <button key={idx} data-testid={`wellness-action-${idx}`}
               onClick={() => onNavigate(a.target)}
               aria-label={`${a.t} - ${a.s}`}
-              className="w-full flex items-center gap-3 p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition">
+              className="w-full flex items-center gap-3 p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition active:scale-[0.98]">
               <div className="w-9 h-9 rounded-xl bdy-soft flex items-center justify-center"><a.i className="w-4 h-4 bdy-text" /></div>
               <div className="flex-1 text-left">
                 <div className="text-sm font-semibold">{a.t}</div>
                 <div className="text-[11px] text-slate-500">{a.s}</div>
               </div>
+              <span className="text-xs text-slate-400">→</span>
             </button>
           ))}
         </div>
@@ -531,44 +581,262 @@ const Social = () => {
   );
 };
 
-const Support = () => (
-  <div className="mx-5 mt-4 space-y-3">
-    <Card>
-      <h3 className="font-display font-bold text-base">Guided Practices</h3>
-      <div className="mt-3 space-y-2">
-        {[{ n: "Box Breathing", d: "3 min" }, { n: "Body Scan", d: "10 min" }, { n: "Sleep Wind-down", d: "8 min" }, { n: "Gratitude Pause", d: "2 min" }].map((p, i) => (
-          <button key={i} data-testid={`practice-${i}`} aria-label={`${p.n}, ${p.d}`} className="w-full flex items-center gap-3 p-3 rounded-xl bg-slate-50">
-            <div className="w-9 h-9 rounded-xl bdy-soft flex items-center justify-center"><Heart className="w-4 h-4 bdy-text" /></div>
-            <div className="flex-1 text-left">
-              <div className="text-sm font-semibold">{p.n}</div>
-              <div className="text-[11px] text-slate-500">{p.d}</div>
-            </div>
-          </button>
-        ))}
-      </div>
-    </Card>
-    <Card className="bg-rose-50 border-rose-200">
-      <div className="flex items-center gap-3">
-        <Phone className="w-5 h-5 text-rose-600" />
-        <div>
-          <div className="text-sm font-bold text-rose-700">In crisis? Talk to someone.</div>
-          <div className="text-xs text-rose-600">Campus counseling: 24/7 support</div>
+const Support = () => null; // Merged into ActivitiesAndSupport below
+
+const ACTIVITY_LIST = [
+  { name: "5-min stretch", seconds: 300, type: "movement" },
+  { name: "Box breathing", seconds: 180, type: "calm" },
+  { name: "Quick sketch", seconds: 600, type: "creative" },
+  { name: "Walk outdoors", seconds: 900, type: "movement" },
+  { name: "Journaling", seconds: 600, type: "reflect" },
+  { name: "Power nap", seconds: 1200, type: "rest" },
+];
+
+const POMODORO_PRESETS = [
+  { label: "25/5", work: 25, break_time: 5 },
+  { label: "50/10", work: 50, break_time: 10 },
+  { label: "15/3", work: 15, break_time: 3 },
+];
+
+const ActivitiesAndSupport = () => {
+  const nav = useNavigate();
+  // Activity timer state
+  const [activeTimer, setActiveTimer] = useState(null);
+  const [remaining, setRemaining] = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  // Pomodoro state
+  const [pomodoroPreset, setPomodoroPreset] = useState(0);
+  const [pomodoroRunning, setPomodoroRunning] = useState(false);
+  const [pomodoroTime, setPomodoroTime] = useState(25 * 60);
+  const [pomodoroPhase, setPomodoroPhase] = useState("work"); // "work" | "break"
+  const [pomodoroSessions, setPomodoroSessions] = useState(0);
+  const [customWork, setCustomWork] = useState("");
+  const [customBreak, setCustomBreak] = useState("");
+  const [showCustom, setShowCustom] = useState(false);
+
+  // Intelligent data
+  const [overview, setOverview] = useState(null);
+
+  // Fetch intelligent overview from backend
+  useEffect(() => {
+    api.get("/wellness/activity-overview").then((r) => setOverview(r.data)).catch(() => { });
+    api.get("/focus/today").then((r) => setPomodoroSessions(r.data.count)).catch(() => { });
+  }, []);
+
+  // Activity timer
+  useEffect(() => {
+    if (activeTimer === null || paused || remaining <= 0) return;
+    const interval = setInterval(() => {
+      setRemaining((r) => { if (r <= 1) { setActiveTimer(null); return 0; } return r - 1; });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [activeTimer, paused, remaining]);
+
+  // Pomodoro timer
+  useEffect(() => {
+    if (!pomodoroRunning || pomodoroTime <= 0) return;
+    const id = setInterval(() => {
+      setPomodoroTime((t) => {
+        if (t <= 1) {
+          // Phase complete
+          if (pomodoroPhase === "work") {
+            setPomodoroPhase("break");
+            setPomodoroSessions((s) => s + 1);
+            return POMODORO_PRESETS[pomodoroPreset].break_time * 60;
+          } else {
+            setPomodoroPhase("work");
+            setPomodoroRunning(false);
+            return POMODORO_PRESETS[pomodoroPreset].work * 60;
+          }
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [pomodoroRunning, pomodoroTime, pomodoroPhase, pomodoroPreset]);
+
+  const startActivity = (idx) => { setActiveTimer(idx); setRemaining(ACTIVITY_LIST[idx].seconds); setPaused(false); };
+  const stopActivity = () => { setActiveTimer(null); setRemaining(0); setPaused(false); };
+
+  const selectPreset = (idx) => {
+    setPomodoroPreset(idx); setPomodoroRunning(false); setPomodoroPhase("work");
+    setPomodoroTime(POMODORO_PRESETS[idx].work * 60); setShowCustom(false);
+  };
+
+  const applyCustom = () => {
+    const w = parseInt(customWork) || 25;
+    const b = parseInt(customBreak) || 5;
+    POMODORO_PRESETS[pomodoroPreset] = { ...POMODORO_PRESETS[pomodoroPreset], work: w, break_time: b };
+    setPomodoroTime(w * 60); setPomodoroPhase("work"); setPomodoroRunning(false); setShowCustom(false);
+  };
+
+  const fmt = (secs) => `${Math.floor(secs / 60)}:${(secs % 60).toString().padStart(2, "0")}`;
+
+  const chart = overview?.weekly_chart || { movement: 0, focus: 0, mindfulness: 0, rest: 0 };
+  const chartData = [
+    { name: "Movement", min: chart.movement },
+    { name: "Focus", min: chart.focus },
+    { name: "Mindful", min: chart.mindfulness },
+    { name: "Rest", min: chart.rest },
+  ];
+
+  return (
+    <div className="mx-5 mt-4 space-y-3">
+      {/* Intelligent Weekly Overview (data from moods, journals, sleep, exercises, focus) */}
+      <Card>
+        <div className="flex justify-between items-center">
+          <h3 className="font-display font-bold text-base">This Week's Wellness</h3>
+          <span className="text-xs bdy-text font-semibold">{overview?.today_minutes || 0} min today</span>
         </div>
-      </div>
-    </Card>
-  </div>
-);
+        <div className="h-24 mt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} barSize={24}>
+              <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={10} />
+              <Bar dataKey="min" radius={[6, 6, 0, 0]} fill="var(--bdy)" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        {overview?.context && (
+          <div className="grid grid-cols-3 gap-2 mt-2 text-center">
+            <div className="p-1.5 rounded-lg bg-slate-50">
+              <div className="text-[9px] text-slate-500">Avg Stress</div>
+              <div className="text-xs font-bold">{overview.context.avg_stress}/100</div>
+            </div>
+            <div className="p-1.5 rounded-lg bg-slate-50">
+              <div className="text-[9px] text-slate-500">Sleep</div>
+              <div className="text-xs font-bold">{overview.context.avg_sleep_hours}h</div>
+            </div>
+            <div className="p-1.5 rounded-lg bg-slate-50">
+              <div className="text-[9px] text-slate-500">Journals</div>
+              <div className="text-xs font-bold">{overview.context.journals_logged}</div>
+            </div>
+          </div>
+        )}
+        {overview?.suggestion && (
+          <div className="mt-2 p-2.5 rounded-xl bg-emerald-50 border border-emerald-100">
+            <div className="text-[10px] font-semibold text-emerald-700 uppercase">{overview.suggestion.type}</div>
+            <div className="text-xs text-emerald-800 mt-0.5">{overview.suggestion.text}</div>
+          </div>
+        )}
+      </Card>
+
+      {/* Pomodoro Focus Timer (editable) */}
+      <Card>
+        <div className="text-center">
+          <div className="text-[10px] text-slate-500 font-semibold uppercase">
+            {pomodoroPhase === "work" ? "Focus · Pomodoro" : "☕ Break Time"}
+          </div>
+          <div className="font-display font-bold text-5xl mt-2 bdy-text" data-testid="pomodoro-timer">
+            {fmt(pomodoroTime)}
+          </div>
+          <div className="flex gap-2 justify-center mt-3">
+            <button onClick={() => setPomodoroRunning(!pomodoroRunning)}
+              aria-label={pomodoroRunning ? "Pause pomodoro" : "Start pomodoro"}
+              className="bdy-bg text-white font-semibold px-5 py-2 rounded-full flex items-center gap-1.5 text-sm active:scale-95">
+              {pomodoroRunning ? <><Pause className="w-4 h-4" /> Pause</> : <><Play className="w-4 h-4" /> Start</>}
+            </button>
+            <button onClick={() => { setPomodoroRunning(false); setPomodoroPhase("work"); setPomodoroTime(POMODORO_PRESETS[pomodoroPreset].work * 60); }}
+              aria-label="Reset pomodoro timer" className="px-4 py-2 rounded-full bg-slate-200 text-slate-700 text-sm font-semibold">
+              Reset
+            </button>
+          </div>
+          <div className="text-xs text-slate-500 mt-2">
+            Sessions today: <span className="font-bold bdy-text">{pomodoroSessions}</span>
+          </div>
+        </div>
+        {/* Duration Presets */}
+        <div className="mt-3 flex gap-2 justify-center flex-wrap">
+          {POMODORO_PRESETS.map((p, i) => (
+            <button key={i} onClick={() => selectPreset(i)}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${pomodoroPreset === i && !showCustom ? "bdy-bg text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+              {p.label}
+            </button>
+          ))}
+          <button onClick={() => setShowCustom(!showCustom)}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold ${showCustom ? "bdy-bg text-white" : "bg-slate-100 text-slate-600"}`}>
+            Custom
+          </button>
+        </div>
+        {showCustom && (
+          <div className="mt-2 flex gap-2 items-center justify-center">
+            <input type="number" min="1" max="120" value={customWork} onChange={(e) => setCustomWork(e.target.value)}
+              placeholder="Work min" className="w-20 px-2 py-1.5 text-xs rounded-lg border border-slate-200 outline-none text-center" />
+            <span className="text-xs text-slate-400">/</span>
+            <input type="number" min="1" max="30" value={customBreak} onChange={(e) => setCustomBreak(e.target.value)}
+              placeholder="Break" className="w-20 px-2 py-1.5 text-xs rounded-lg border border-slate-200 outline-none text-center" />
+            <button onClick={applyCustom} className="px-3 py-1.5 rounded-lg bdy-bg text-white text-xs font-semibold">Set</button>
+          </div>
+        )}
+      </Card>
+
+      {/* Quick Stress Breaks with Timer */}
+      <Card>
+        <h3 className="font-display font-bold text-base">Quick Stress Breaks</h3>
+        <p className="text-xs text-slate-500 mt-0.5">Tap to start a guided timer.</p>
+
+        {activeTimer !== null && (
+          <div className="mt-3 p-4 rounded-2xl bdy-soft border border-[color:var(--bdy)]/20 text-center">
+            <div className="text-xs font-semibold bdy-text uppercase">{ACTIVITY_LIST[activeTimer].name}</div>
+            <div className="font-display font-bold text-3xl mt-1 bdy-text">{fmt(remaining)}</div>
+            <div className="mt-1 h-2 rounded-full bg-slate-200 overflow-hidden">
+              <div className="h-full bdy-bg transition-all duration-1000"
+                style={{ width: `${((ACTIVITY_LIST[activeTimer].seconds - remaining) / ACTIVITY_LIST[activeTimer].seconds) * 100}%` }} />
+            </div>
+            <div className="flex gap-2 justify-center mt-2">
+              <button onClick={() => setPaused(!paused)} className="px-3 py-1.5 rounded-xl bdy-bg text-white text-xs font-semibold">
+                {paused ? "Resume" : "Pause"}
+              </button>
+              <button onClick={stopActivity} className="px-3 py-1.5 rounded-xl bg-slate-200 text-slate-700 text-xs font-semibold">Stop</button>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-3 gap-2 mt-3">
+          {ACTIVITY_LIST.map((a, i) => (
+            <button key={i} onClick={() => startActivity(i)} disabled={activeTimer !== null}
+              className="p-2.5 rounded-xl bdy-soft text-left disabled:opacity-50 active:scale-95 transition">
+              <Activity className="w-3.5 h-3.5 bdy-text" />
+              <div className="text-[11px] font-bold mt-1">{a.name}</div>
+              <div className="text-[10px] text-slate-500">{Math.floor(a.seconds / 60)}m</div>
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      {/* Redirect to Social for group activities */}
+      <Card className="bdy-soft border border-[color:var(--bdy)]/15">
+        <button onClick={() => nav("/social")} className="w-full flex items-center gap-3" aria-label="Go to Social">
+          <div className="w-10 h-10 rounded-xl bdy-bg flex items-center justify-center"><Users className="w-5 h-5 text-white" /></div>
+          <div className="flex-1 text-left">
+            <div className="text-sm font-display font-bold">Group Fitness & Challenges</div>
+            <div className="text-[11px] text-slate-500">Track goals with peers · Join challenges</div>
+          </div>
+          <span className="text-xs bdy-text font-semibold">→</span>
+        </button>
+      </Card>
+
+      {/* Crisis Support */}
+      <Card className="bg-rose-50 border-rose-200">
+        <div className="flex items-center gap-3">
+          <Phone className="w-5 h-5 text-rose-600" />
+          <div>
+            <div className="text-sm font-bold text-rose-700">In crisis? Talk to someone.</div>
+            <div className="text-xs text-rose-600">iCall: 9152987821 · Vandrevala: 1860-2662-345</div>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
 
 const TABS = [
   { key: "dash", label: "Dashboard", C: Dashboard },
   { key: "sleep", label: "Sleep", C: Sleep },
   { key: "burn", label: "Burnout", C: Burnout },
-  { key: "stress", label: "Stress", C: Stress },
   { key: "routine", label: "Routine", C: Routine },
   { key: "check", label: "Check-Ins", C: CheckIns },
-  { key: "focus", label: "Focus", C: Focus },
-  { key: "social", label: "Social", C: Social },
-  { key: "support", label: "Support", C: Support },
+  { key: "act", label: "Activities & Support", C: ActivitiesAndSupport },
 ];
 
 export default function WellnessBuddy() {
