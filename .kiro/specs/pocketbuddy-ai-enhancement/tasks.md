@@ -251,8 +251,8 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - Handle endpoint errors with retry button
     - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 12.10_
 
-- [ ] 13. Voice Input for Journal Entries
-  - [-] 13.1 Create frontend voice input module and component
+- [x] 13. Voice Input for Journal Entries
+  - [x] 13.1 Create frontend voice input module and component
     - Create `frontend/src/lib/voiceInput.js` wrapping Web Speech API with `isSupported()`, `start()`, `stop()` interface
     - Create `frontend/src/components/VoiceInputButton.jsx` with mic icon and pulsing recording indicator animation
     - Implement real-time transcript display in journal text area (within 500ms)

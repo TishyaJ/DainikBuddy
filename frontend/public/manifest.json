@@ -1,0 +1,25 @@
+{
+    "short_name": "PocketBuddy",
+    "name": "PocketBuddy",
+    "icons": [
+        {
+            "src": "icons/icon-192x192.png",
+            "type": "image/png",
+            "sizes": "192x192",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "icons/icon-512x512.png",
+            "type": "image/png",
+            "sizes": "512x512",
+            "purpose": "any maskable"
+        }
+    ],
+    "start_url": ".",
+    "display": "standalone",
+    "theme_color": "#A855F7",
+    "background_color": "#1a1a2e",
+    "orientation": "portrait",
+    "scope": "/",
+    "description": "Your AI-powered personal finance companion"
+}

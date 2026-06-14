@@ -2,8 +2,9 @@ import React, { useEffect, useState } from "react";
 import { Header } from "../components/Header";
 import { SubTabs, Card, InsightCard } from "../components/SubTabs";
 import { ExerciseTracker } from "../components/Exercise";
-import { Star, MapPin, Train, Bike, Car, Footprints, Shield, Phone, Apple, Activity, GraduationCap, Sparkles, Users } from "lucide-react";
+import { Star, MapPin, Train, Bike, Car, Footprints, Shield, Phone, Apple, Activity, GraduationCap, Sparkles, Users, WifiOff } from "lucide-react";
 import { api } from "../lib/api";
+import { useOffline } from "../context/OfflineContext";
 
 const Dashboard = () => {
   const [food, setFood] = useState([]);
@@ -224,7 +225,26 @@ const TABS = [
 
 export default function DiscoverBuddy() {
   const [tab, setTab] = useState("dash");
+  const { isOnline } = useOffline();
   const Active = TABS.find((t) => t.key === tab).C;
+
+  if (!isOnline) {
+    return (
+      <div className="flex-1 overflow-auto scroll-area pb-4">
+        <Header title="Discover Buddy 🧭" subtitle="Eat well. Travel smart. Save more." gradient />
+        <div className="flex flex-col items-center justify-center px-5 py-16" data-testid="discover-offline-message">
+          <div className="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center mb-4">
+            <WifiOff className="w-8 h-8 text-amber-500" />
+          </div>
+          <h2 className="font-display font-bold text-lg text-slate-800">Discover requires internet</h2>
+          <p className="text-sm text-slate-500 text-center mt-2 max-w-xs">
+            Discover features need an active internet connection to find nearby places and deals. Check back when you're online.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 overflow-auto scroll-area pb-4">
       <Header title="Discover Buddy 🧭" subtitle="Eat well. Travel smart. Save more." gradient />

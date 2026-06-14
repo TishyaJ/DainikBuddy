@@ -4,6 +4,7 @@ import { Header } from "../components/Header";
 import { SubTabs, Card, InsightCard } from "../components/SubTabs";
 import { Tasks } from "../components/Tasks";
 import { Smile, Frown, Meh, Heart, Zap, Mic, Camera, Plus, Target, Sparkles, TrendingUp, AlertTriangle, RefreshCw, CheckCircle2 } from "lucide-react";
+import { VoiceInputButton } from "../components/VoiceInputButton";
 import { api } from "../lib/api";
 import { BarChart, Bar, XAxis, ResponsiveContainer, Cell, RadarChart, PolarGrid, PolarAngleAxis, Radar } from "recharts";
 import { motion, AnimatePresence } from "framer-motion";
@@ -136,10 +137,17 @@ const Expense = () => {
   );
 };
 
+const MAX_JOURNAL_CHARS = 5000;
+
 const Journal = () => {
   const [text, setText] = useState("");
   const [list, setList] = useState([]);
   const [weekly, setWeekly] = useState([]);
+  const [voiceError, setVoiceError] = useState("");
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState("");
+  const textBeforeVoiceRef = React.useRef("");
+
   const load = async () => {
     setList((await api.get("/journal?limit=5")).data);
     setWeekly((await api.get("/journal/weekly")).data);
@@ -150,22 +158,71 @@ const Journal = () => {
     await api.post("/journal", { text });
     setText(""); load();
   };
+
+  const handleVoiceTranscript = useCallback((transcript) => {
+    setVoiceError("");
+    setIsTranscribing(true);
+    setInterimTranscript(transcript);
+
+    // Append transcript to text that existed before voice started, respecting 5000 char cap
+    const baseText = textBeforeVoiceRef.current;
+    const separator = baseText && !baseText.endsWith(" ") && !baseText.endsWith("\n") ? " " : "";
+    const available = MAX_JOURNAL_CHARS - baseText.length - separator.length;
+    const truncatedTranscript = transcript.slice(0, Math.max(0, available));
+    setText(baseText + separator + truncatedTranscript);
+  }, []);
+
+  const handleVoiceError = useCallback((message) => {
+    setVoiceError(message);
+    setIsTranscribing(false);
+    setInterimTranscript("");
+    // Clear error after 5 seconds
+    setTimeout(() => setVoiceError(""), 5000);
+  }, []);
+
+  const handleVoiceEnd = useCallback(() => {
+    setIsTranscribing(false);
+    setInterimTranscript("");
+  }, []);
+
+  // Track base text when voice recording starts (via the button click)
+  const handleVoiceStart = useCallback(() => {
+    textBeforeVoiceRef.current = text;
+  }, [text]);
+
   return (
     <Card className="mx-5 mt-4">
       <h3 className="font-display font-bold text-lg">Daily Journal</h3>
       <textarea
         data-testid="journal-textarea"
-        value={text} onChange={(e) => setText(e.target.value)}
+        value={text} onChange={(e) => setText(e.target.value.slice(0, MAX_JOURNAL_CHARS))}
         placeholder="What's on your mind today?" rows={4}
+        maxLength={MAX_JOURNAL_CHARS}
         className="w-full mt-3 bg-slate-50 rounded-xl px-3 py-2.5 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)] resize-none"
       />
-      <div className="grid grid-cols-2 gap-2 mt-2">
+      <div className="flex justify-between items-center mt-1 mb-1">
+        <span className="text-[10px] text-slate-400">{text.length}/{MAX_JOURNAL_CHARS}</span>
+        {isTranscribing && (
+          <span className="text-[10px] text-red-500 font-medium animate-pulse">● Recording...</span>
+        )}
+      </div>
+      {voiceError && (
+        <div data-testid="voice-error-message" className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg mb-2">
+          {voiceError}
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-2 mt-1">
         <button onClick={save} data-testid="save-journal-btn" className="bdy-bg text-white font-semibold py-2.5 rounded-xl active:scale-95">
           Save
         </button>
-        <button data-testid="voice-journal-btn" className="bg-white border border-[color:var(--bdy)] text-[color:var(--bdy)] font-semibold py-2.5 rounded-xl flex items-center justify-center gap-1">
-          <Mic className="w-4 h-4" /> Voice
-        </button>
+        <VoiceInputButton
+          onTranscript={handleVoiceTranscript}
+          onError={handleVoiceError}
+          onEnd={handleVoiceEnd}
+          onStart={handleVoiceStart}
+          disabled={text.length >= MAX_JOURNAL_CHARS}
+          className=""
+        />
       </div>
       <div className="mt-4">
         <div className="text-xs font-semibold text-slate-500 mb-2">WEEKLY SENTIMENT</div>

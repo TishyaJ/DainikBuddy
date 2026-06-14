@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { Header } from "../components/Header";
 import { Card, InsightCard } from "../components/SubTabs";
 import { api } from "../lib/api";
-import { Sparkles, ChevronRight } from "lucide-react";
+import { Sparkles, ChevronRight, WifiOff } from "lucide-react";
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer } from "recharts";
+import { useOffline } from "../context/OfflineContext";
 
 const BUDDIES = [
   { key: "finance", name: "Finance Buddy", emoji: "🦉", tag: "Savings. Budgeting. Smart choices.", color: "#3B82F6", bg: "#EFF6FF" },
@@ -15,6 +16,7 @@ const BUDDIES = [
 
 export default function ChatCenter() {
   const nav = useNavigate();
+  const { isOnline } = useOffline();
   const [lb, setLb] = useState(null);
   const [insights, setInsights] = useState([]);
   const [weekly, setWeekly] = useState(null);
@@ -23,6 +25,24 @@ export default function ChatCenter() {
     api.get("/insights/daily").then((r) => setInsights(Array.isArray(r.data) ? r.data : r.data?.insights || [])).catch(() => { });
     api.get("/insights/weekly").then((r) => setWeekly(r.data)).catch(() => { });
   }, []);
+
+  if (!isOnline) {
+    return (
+      <div className="flex-1 overflow-auto scroll-area pb-4">
+        <Header title="Chat with your buddies ✨" subtitle="Pick a buddy to start chatting" gradient />
+        <div className="flex flex-col items-center justify-center px-5 py-16" data-testid="chat-offline-message">
+          <div className="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center mb-4">
+            <WifiOff className="w-8 h-8 text-amber-500" />
+          </div>
+          <h2 className="font-display font-bold text-lg text-slate-800">Chat requires internet</h2>
+          <p className="text-sm text-slate-500 text-center mt-2 max-w-xs">
+            AI chat features need an active internet connection. Your data is saved locally and will sync when you're back online.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 overflow-auto scroll-area pb-4">
       <Header title="Chat with your buddies ✨" subtitle="Pick a buddy to start chatting" gradient />

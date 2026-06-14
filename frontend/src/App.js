@@ -5,9 +5,13 @@ import { DomainProvider, useDomain } from "./context/DomainContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { GamificationProvider } from "./context/GamificationContext";
 import { NotificationProvider } from "./context/NotificationContext";
+import { OfflineProvider } from "./context/OfflineContext";
 import LevelUpOverlay from "./components/LevelUpOverlay";
 import { PhoneFrame } from "./components/PhoneFrame";
 import { BottomNav } from "./components/BottomNav";
+import { OfflineIndicator } from "./components/OfflineIndicator";
+import { SyncStatus } from "./components/SyncStatus";
+import { ConflictResolution } from "./components/ConflictResolution";
 import DailyHub from "./pages/DailyHub";
 import FinanceBuddy from "./pages/FinanceBuddy";
 import WellnessBuddy from "./pages/WellnessBuddy";
@@ -101,22 +105,27 @@ const Shell = () => {
       {showOnboarding ? (
         <Onboarding onDone={() => api.get("/profile").then((r) => setProfile(r.data))} />
       ) : (
-        <Routes>
-          <Route path="/" element={<DailyHub />} />
-          <Route path="/finance" element={<FinanceBuddy />} />
-          <Route path="/wellness" element={<WellnessBuddy />} />
-          <Route path="/discover" element={<DiscoverBuddy />} />
-          <Route path="/chat" element={<ChatCenter />} />
-          <Route path="/chat/:buddy" element={<BuddyChat />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/notifications" element={<NotificationCenter />} />
-          <Route path="/notifications/preferences" element={<NotificationPreferences />} />
-          <Route path="/social" element={<StudyGroups />} />
-          <Route path="/social/group/:groupId" element={<GroupDetail />} />
-          <Route path="/trends" element={<TrendsView />} />
-        </Routes>
+        <>
+          <OfflineIndicator />
+          <Routes>
+            <Route path="/" element={<DailyHub />} />
+            <Route path="/finance" element={<FinanceBuddy />} />
+            <Route path="/wellness" element={<WellnessBuddy />} />
+            <Route path="/discover" element={<DiscoverBuddy />} />
+            <Route path="/chat" element={<ChatCenter />} />
+            <Route path="/chat/:buddy" element={<BuddyChat />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/notifications" element={<NotificationCenter />} />
+            <Route path="/notifications/preferences" element={<NotificationPreferences />} />
+            <Route path="/social" element={<StudyGroups />} />
+            <Route path="/social/group/:groupId" element={<GroupDetail />} />
+            <Route path="/trends" element={<TrendsView />} />
+          </Routes>
+        </>
       )}
       {showNav && <BottomNav />}
+      <SyncStatus />
+      <ConflictResolution />
     </>
   );
 };
@@ -191,10 +200,12 @@ function AppWrapper() {
       <DomainProvider>
         <GamificationProvider>
           <NotificationProvider>
-            <BrowserRouter>
-              <App />
-              <LevelUpOverlay />
-            </BrowserRouter>
+            <OfflineProvider>
+              <BrowserRouter>
+                <App />
+                <LevelUpOverlay />
+              </BrowserRouter>
+            </OfflineProvider>
           </NotificationProvider>
         </GamificationProvider>
       </DomainProvider>
