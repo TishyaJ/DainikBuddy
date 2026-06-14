@@ -6,7 +6,7 @@ import { Tasks } from "../components/Tasks";
 import { Plus, Target, Sparkles, TrendingUp, AlertTriangle, RefreshCw, CheckCircle2, Moon, Info } from "lucide-react";
 import { VoiceInputButton } from "../components/VoiceInputButton";
 import { api } from "../lib/api";
-import { BarChart, Bar, XAxis, ResponsiveContainer, Cell, RadarChart, PolarGrid, PolarAngleAxis, Radar } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, RadarChart, PolarGrid, PolarAngleAxis, Radar } from "recharts";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGamification } from "../context/GamificationContext";
 import PageTransition from "../components/PageTransition";
@@ -234,13 +234,12 @@ const Journal = () => {
         <div className="text-xs font-semibold text-slate-500 mb-2">WEEKLY SENTIMENT</div>
         <div className="h-24" data-testid="weekly-sentiment-chart">
           <ResponsiveContainer>
-            <BarChart data={weekly}>
+            <BarChart data={weekly.map(d => d.count > 0 ? d : { ...d, neutral: 1 })} margin={{ top: 5, bottom: 0, left: 0, right: 0 }}>
               <XAxis dataKey="day" tickLine={false} axisLine={false} fontSize={10} />
-              <Bar dataKey="score" radius={[6, 6, 0, 0]}>
-                {weekly.map((d, i) => (
-                  <Cell key={i} fill={d.score > 0 ? "var(--bdy)" : d.score < 0 ? "#F87171" : "#CBD5E1"} />
-                ))}
-              </Bar>
+              <YAxis domain={[0, 1]} hide />
+              <Bar dataKey="positive" stackId="sentiment" fill="#34D399" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="neutral" stackId="sentiment" fill="#CBD5E1" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="negative" stackId="sentiment" fill="#F87171" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

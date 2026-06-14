@@ -348,6 +348,8 @@ const Travel = () => {
   const [error, setError] = useState(null);
   const [showAddPlace, setShowAddPlace] = useState(false);
   const [newPlace, setNewPlace] = useState({ name: "", type: "other" });
+  const [showFromDropdown, setShowFromDropdown] = useState(false);
+  const [showToDropdown, setShowToDropdown] = useState(false);
   const ICONS = { Metro: Train, Bus: Car, Auto: Car, "Ola/Uber": Car, "Cycle Rickshaw": Bike, Walk: Footprints, Train: Train };
   const PLACE_TYPES = ["hostel", "college", "library", "market", "hospital", "other"];
 
@@ -390,13 +392,45 @@ const Travel = () => {
       <Card>
         <h3 className="font-display font-bold text-base">Route Comparison</h3>
         <div className="flex items-center gap-2 mt-2">
-          <input type="text" value={fromPlace} onChange={(e) => setFromPlace(e.target.value)}
-            placeholder="From location..."
-            className="flex-1 text-xs bg-slate-50 rounded-lg px-2 py-2 border border-slate-200 outline-none" aria-label="From location" />
+          <div className="flex-1 relative">
+            <input type="text" value={fromPlace}
+              onChange={(e) => setFromPlace(e.target.value)}
+              onFocus={() => setShowFromDropdown(true)}
+              onBlur={() => setTimeout(() => setShowFromDropdown(false), 150)}
+              placeholder="From location..."
+              className="w-full text-xs bg-slate-50 rounded-lg px-2 py-2 border border-slate-200 outline-none" aria-label="From location" />
+            {showFromDropdown && places.length > 0 && (
+              <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-32 overflow-y-auto">
+                {places.filter(p => !fromPlace || p.name.toLowerCase().includes(fromPlace.toLowerCase())).map(p => (
+                  <button key={p.id} type="button"
+                    onMouseDown={(e) => { e.preventDefault(); setFromPlace(p.name); setShowFromDropdown(false); }}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 text-slate-700">
+                    {p.name} <span className="text-slate-400">({p.type})</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <span className="text-xs text-slate-400 font-bold">→</span>
-          <input type="text" value={toPlace} onChange={(e) => setToPlace(e.target.value)}
-            placeholder="To location..."
-            className="flex-1 text-xs bg-slate-50 rounded-lg px-2 py-2 border border-slate-200 outline-none" aria-label="To location" />
+          <div className="flex-1 relative">
+            <input type="text" value={toPlace}
+              onChange={(e) => setToPlace(e.target.value)}
+              onFocus={() => setShowToDropdown(true)}
+              onBlur={() => setTimeout(() => setShowToDropdown(false), 150)}
+              placeholder="To location..."
+              className="w-full text-xs bg-slate-50 rounded-lg px-2 py-2 border border-slate-200 outline-none" aria-label="To location" />
+            {showToDropdown && places.length > 0 && (
+              <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-32 overflow-y-auto">
+                {places.filter(p => !toPlace || p.name.toLowerCase().includes(toPlace.toLowerCase())).map(p => (
+                  <button key={p.id} type="button"
+                    onMouseDown={(e) => { e.preventDefault(); setToPlace(p.name); setShowToDropdown(false); }}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 text-slate-700">
+                    {p.name} <span className="text-slate-400">({p.type})</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         <button onClick={compareRoutes} disabled={!fromPlace.trim() || !toPlace.trim() || loading}
           className="w-full mt-2 px-3 py-2 rounded-lg bdy-bg text-white text-xs font-semibold disabled:opacity-50">
