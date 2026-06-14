@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Send, ArrowLeft, Mic, Sparkles, RotateCcw, WifiOff } from "lucide-react";
+import { Send, ArrowLeft, Sparkles, RotateCcw, WifiOff } from "lucide-react";
 import { api, streamChat } from "../lib/api";
 import { useOffline } from "../context/OfflineContext";
+import { VoiceInputButton } from "../components/VoiceInputButton";
 
 const BUDDIES = {
   finance: {
@@ -146,9 +147,14 @@ export default function BuddyChat() {
       )}
 
       <div className="border-t border-slate-200 bg-white px-3 py-3 flex items-center gap-2">
-        <button data-testid="mic-btn" aria-label="Voice input" className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
-          <Mic className="w-4 h-4" />
-        </button>
+        <VoiceInputButton
+          onTranscript={(t) => setInput((prev) => prev + t)}
+          onError={() => { }}
+          onEnd={() => { }}
+          onStart={() => { }}
+          disabled={streaming}
+          className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600"
+        />
         <input
           data-testid="chat-input" value={input} onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}

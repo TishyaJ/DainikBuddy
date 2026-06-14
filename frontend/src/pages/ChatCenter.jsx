@@ -134,7 +134,7 @@ export default function ChatCenter() {
                   <div className="flex items-center gap-1 mt-1">
                     <Info className="w-3 h-3 text-amber-500" />
                     <span className="text-[10px] text-amber-600 font-medium">
-                      Based on {lb.days_used ? Math.min(...Object.values(lb.days_used)) : "< 7"} days of data
+                      Based on {lb.days_used ? Math.max(...Object.values(lb.days_used)) : "< 7"} days of data
                     </span>
                   </div>
                 )}
@@ -240,8 +240,12 @@ export default function ChatCenter() {
                 <div key={s.domain} className="p-2 rounded-xl bg-slate-50">
                   <div className="text-[10px] text-slate-500 font-semibold uppercase">{s.domain}</div>
                   <div className="flex items-baseline gap-1.5">
-                    <span className="font-bold text-lg">{s.score}</span>
-                    <span className={`text-[11px] font-bold ${s.trend.startsWith("+") ? "text-emerald-600" : "text-rose-600"}`}>{s.trend}</span>
+                    <span className="font-bold text-lg">{s.score ?? "—"}</span>
+                    {s.trend != null && (
+                      <span className={`text-[11px] font-bold ${s.trend >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                        {s.trend > 0 ? `+${s.trend}` : s.trend}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}
