@@ -893,3 +893,47 @@ The project grew from a simple prototype to a full-stack app with 55+ API endpoi
 - All implementation tasks complete (1-18)
 - Full documentation suite created
 - Project is now reproducible by a new team member following the guides
+
+
+## June 14, 2026 — AI Backend Streaming Fix
+
+### What happened
+Investigated and fixed an issue where all 4 chatbots were throwing AxiosError: timeout of 30000ms exceeded on the frontend. 
+
+### Investigation
+- Initially suspected the streamChat frontend implementation, but found it correctly used etch without timeouts.
+- Identified that the 30s timeout was actually coming from background pi.get or pi.delete Axios calls when the Chat component mounted or cleared history.
+- Tested the FastAPI backend and found that curl http://localhost:8000/api/ hung indefinitely. The server was deadlocked.
+- Found the cause: a KeyError: \'MONGO_URL\' in gamification_service during uvicorn hot-reloading due to load_dotenv being called *after* imports, compounded by a UTF-8 BOM in the .env file breaking python-dotenv.
+
+### Fix
+- Reordered imports in server.py to call load_dotenv at the very top.
+- Removed the BOM from .env.
+- Restarted the deadlocked Uvicorn processes.
+- Simulated a streaming chat session via Python script to confirm that the SSE backend endpoint streams responses correctly and instantly.
+
+### Current State
+- **Tasks completed**: Backend streaming fix ✓
+- **All AI Chatbots functioning**: Responses stream correctly to the UI.
+
+
+## June 14, 2026 — AI Backend Streaming Fix
+
+### What happened
+Investigated and fixed an issue where all 4 chatbots were throwing AxiosError: timeout of 30000ms exceeded on the frontend. 
+
+### Investigation
+- Initially suspected the streamChat frontend implementation, but found it correctly used etch without timeouts.
+- Identified that the 30s timeout was actually coming from background pi.get or pi.delete Axios calls when the Chat component mounted or cleared history.
+- Tested the FastAPI backend and found that curl http://localhost:8000/api/ hung indefinitely. The server was deadlocked.
+- Found the cause: a KeyError: \'MONGO_URL\' in gamification_service during uvicorn hot-reloading due to load_dotenv being called *after* imports, compounded by a UTF-8 BOM in the .env file breaking python-dotenv.
+
+### Fix
+- Reordered imports in server.py to call load_dotenv at the very top.
+- Removed the BOM from .env.
+- Restarted the deadlocked Uvicorn processes.
+- Simulated a streaming chat session via Python script to confirm that the SSE backend endpoint streams responses correctly and instantly.
+
+### Current State
+- **Tasks completed**: Backend streaming fix ✓
+- **All AI Chatbots functioning**: Responses stream correctly to the UI.

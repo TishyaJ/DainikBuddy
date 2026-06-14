@@ -717,3 +717,42 @@ Development workflow (daily startup, making changes, running tests, git)
 Color-coded warnings (🔴 Critical / 🟡 Important / 🟢 Good to know)
 Architecture quick reference (request flow, database collections, port map)
 Deployment notes for later
+
+## Session: June 14, 2026 — AI Backend Streaming Fix
+
+### Root Cause
+The AxiosError: timeout of 30000ms exceeded issue on the frontend was caused by a backend deadlock.
+- The load_dotenv placement in server.py was after import gamification_service, which crashed uvicorn reloads with KeyError: \'MONGO_URL\'.
+- The ackend/.env file contained a UTF-8 BOM, causing python-dotenv to misread the first variable.
+- These combined left the FastAPI server in a zombie state, accepting TCP connections but not processing HTTP requests, hanging frontend API calls.
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| ackend/server.py | Moved load_dotenv to the top to ensure variables are loaded before module imports. |
+| ackend/.env | Removed the UTF-8 BOM. |
+| change_log.md | Added this session\'s log entry. |
+| diary.md | Added diary entry for this session. |
+
+### Summary
+Fixed the frontend Axios timeout error by resolving a backend deadlock. Restored the FastAPI streaming chat endpoint, allowing the AI orchestrator to successfully stream SSE responses back to the frontend without hanging.
+
+
+## Session: June 14, 2026 — AI Backend Streaming Fix
+
+### Root Cause
+The AxiosError: timeout of 30000ms exceeded issue on the frontend was caused by a backend deadlock.
+- The load_dotenv placement in server.py was after import gamification_service, which crashed uvicorn reloads with KeyError: \'MONGO_URL\'.
+- The ackend/.env file contained a UTF-8 BOM, causing python-dotenv to misread the first variable.
+- These combined left the FastAPI server in a zombie state, accepting TCP connections but not processing HTTP requests, hanging frontend API calls.
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| ackend/server.py | Moved load_dotenv to the top to ensure variables are loaded before module imports. |
+| ackend/.env | Removed the UTF-8 BOM. |
+| change_log.md | Added this session\'s log entry. |
+| diary.md | Added diary entry for this session. |
+
+### Summary
+Fixed the frontend Axios timeout error by resolving a backend deadlock. Restored the FastAPI streaming chat endpoint, allowing the AI orchestrator to successfully stream SSE responses back to the frontend without hanging.
