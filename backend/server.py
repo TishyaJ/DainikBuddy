@@ -19,6 +19,8 @@ from emergentintegrations.llm.chat import LlmChat, UserMessage, TextDelta, Strea
 from jwt_middleware import get_current_user
 import gamification_service
 import categorization_service
+from discover_travel_service import TravelService
+from discover_food_service import FoodRecommendationService
 
 ROOT_DIR = Path(__file__).parent
 
@@ -39,6 +41,12 @@ logger = logging.getLogger(__name__)
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def sanitize_mongo_doc(doc: dict) -> dict:
+    """Remove MongoDB _id from document before returning to client."""
+    doc.pop("_id", None)
+    return doc
 
 
 # ============ MODELS ============
@@ -1297,39 +1305,12 @@ async def set_food_preferences(payload: Dict[str, Any], user_id: str = Depends(g
 # ============ DISCOVER (static seed) ============
 @api_router.get("/discover/food")
 async def discover_food(user_id: str = Depends(get_current_user)):
-    """Return food recommendations filtered by user preferences."""
-    prefs = await db.user_food_preferences.find_one({"user_id": user_id}, {"_id": 0})
-    budget = (prefs or {}).get("budget_per_meal", 200)
-    dietary = (prefs or {}).get("dietary", "any")
-
-    # Mock data pool (will be DB-driven in Phase 5)
-    all_food = [
-        {"name": "Mess Express", "price": 50, "rating": 4.3, "distance": "0.2 km", "tag": "Full meal", "dietary": "veg", "image": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400"},
-        {"name": "Roll Zone", "price": 40, "rating": 4.5, "distance": "0.4 km", "tag": "Rolls", "dietary": "any", "image": "https://images.unsplash.com/photo-1565299507177-b0ac66763828?w=400"},
-        {"name": "Student Thali", "price": 60, "rating": 4.2, "distance": "0.6 km", "tag": "Thali", "dietary": "veg", "image": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=400"},
-        {"name": "Coffee Cart", "price": 25, "rating": 4.1, "distance": "0.1 km", "tag": "Drinks", "dietary": "any", "image": "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400"},
-        {"name": "Chicken Corner", "price": 80, "rating": 4.4, "distance": "0.3 km", "tag": "Non-veg", "dietary": "non-veg", "image": "https://images.unsplash.com/photo-1603360946369-dc9bb6258143?w=400"},
-        {"name": "South Dosa", "price": 45, "rating": 4.6, "distance": "0.5 km", "tag": "South Indian", "dietary": "veg", "image": "https://images.unsplash.com/photo-1630383249896-424e482df921?w=400"},
-        {"name": "Momos Hub", "price": 35, "rating": 4.0, "distance": "0.3 km", "tag": "Chinese", "dietary": "any", "image": "https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?w=400"},
-        {"name": "Juice Bar", "price": 30, "rating": 4.2, "distance": "0.2 km", "tag": "Healthy", "dietary": "vegan", "image": "https://images.unsplash.com/photo-1622597467836-f3285f2131b8?w=400"},
-    ]
-
-    # Filter by budget
-    filtered = [f for f in all_food if f["price"] <= budget]
-
-    # Filter by dietary preference
-    if dietary == "veg":
-        filtered = [f for f in filtered if f["dietary"] in ("veg", "vegan")]
-    elif dietary == "vegan":
-        filtered = [f for f in filtered if f["dietary"] == "vegan"]
-    elif dietary == "non-veg":
-        pass  # non-veg users can eat everything
-    # "any" and "jain" get all results (jain filtering would need more data)
-
-    # Sort by rating
-    filtered.sort(key=lambda x: x["rating"], reverse=True)
-
-    return filtered
+    """Return AI-powered personalized food recommendations for the user."""
+    food_service = FoodRecommendationService(db)
+    recommendations = await food_service.get_recommendations(user_id)
+    if not recommendations:
+        return {"items": [], "error": "Unable to fetch recommendations. Please try again."}
+    return {"items": recommendations, "error": None}
 
 
 @api_router.get("/discover/travel")
@@ -1354,6 +1335,21 @@ async def discover_travel(user_id: str = Depends(get_current_user)):
     return {"routes": routes, "from": default_from, "to": default_to, "saved_places": places}
 
 
+@api_router.post("/discover/routes")
+async def discover_routes(payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
+    """AI-powered route comparison between any two Indian locations."""
+    source = (payload.get("from") or "").strip()
+    destination = (payload.get("to") or "").strip()
+    if not source or not destination:
+        raise HTTPException(400, "Source and destination required")
+
+    travel_service = TravelService(db)
+    routes = await travel_service.get_routes(source, destination, user_id)
+    places = await db.saved_places.find({"user_id": user_id}, {"_id": 0}).to_list(20)
+
+    return {"routes": routes, "from": source, "to": destination, "saved_places": places}
+
+
 @api_router.get("/discover/saved-places")
 async def get_saved_places(user_id: str = Depends(get_current_user)):
     """Get user's saved locations."""
@@ -1376,7 +1372,7 @@ async def add_saved_place(payload: Dict[str, Any], user_id: str = Depends(get_cu
         "created_at": now_iso(),
     }
     await db.saved_places.insert_one(place)
-    return place
+    return sanitize_mongo_doc(place)
 
 
 @api_router.delete("/discover/saved-places/{place_id}")
@@ -1457,14 +1453,15 @@ async def discover_campus(user_id: str = Depends(get_current_user)):
     user_resources = await db.campus_resources.find({"user_id": user_id}, {"_id": 0}).to_list(20)
     if user_resources:
         return user_resources
-    # Default resources (seeded)
+    # Default resources (seeded) — realistic Indian college data
     return [
-        {"name": "Counseling Center", "type": "wellness", "available": True, "hours": "9 AM - 5 PM", "contact": ""},
-        {"name": "Peer Tutoring", "type": "study", "available": True, "hours": "10 AM - 6 PM", "contact": ""},
-        {"name": "Food Pantry", "type": "aid", "available": True, "hours": "11 AM - 3 PM", "contact": ""},
-        {"name": "Financial Aid Office", "type": "aid", "available": False, "hours": "Closed weekends", "contact": ""},
-        {"name": "Library", "type": "study", "available": True, "hours": "8 AM - 10 PM", "contact": ""},
-        {"name": "Health Center", "type": "wellness", "available": True, "hours": "24/7 Emergency", "contact": ""},
+        {"name": "Counseling Center", "type": "wellness", "available": True, "hours": "9 AM - 6 PM Mon-Sat", "contact": "1800-599-0019 (iCall Helpline)"},
+        {"name": "Peer Tutoring", "type": "study", "available": True, "hours": "10 AM - 6 PM Mon-Fri", "contact": "Dept. Office Ext. 2040"},
+        {"name": "Mess/Canteen", "type": "aid", "available": True, "hours": "7:30 AM - 10 PM", "contact": "Ext. 1050"},
+        {"name": "Financial Aid Office", "type": "aid", "available": True, "hours": "10 AM - 5 PM Mon-Fri", "contact": "Ext. 3020"},
+        {"name": "Library", "type": "study", "available": True, "hours": "8 AM - 10 PM", "contact": "Ext. 1010"},
+        {"name": "Health Center", "type": "wellness", "available": True, "hours": "24/7 Emergency", "contact": "108 (Ambulance) / Ext. 1234"},
+        {"name": "Student Helpline", "type": "wellness", "available": True, "hours": "24/7", "contact": "9820466726 (AASRA)"},
     ]
 
 
@@ -1485,7 +1482,7 @@ async def add_campus_resource(payload: Dict[str, Any], user_id: str = Depends(ge
         "created_at": now_iso(),
     }
     await db.campus_resources.insert_one(resource)
-    return resource
+    return sanitize_mongo_doc(resource)
 
 
 @api_router.delete("/discover/campus/{resource_id}")
