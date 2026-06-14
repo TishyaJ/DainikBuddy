@@ -11,20 +11,10 @@
 
 | Field | Details |
 |-------|---------|
-| **Team Name** | *[Your Team Name]* |
+| **Team Name** | *AEGIS101* |
 | **Hackathon Theme** | AI for Student Well-Being & Financial Literacy |
-| **Date** | *[Submission Date]* |
+| **THEME** | *THEME 4* |
 
-### Team Members
-
-| Name | College / University | Role | Email |
-|------|---------------------|------|-------|
-| [Member 1] | [College] | Full-Stack Dev / AI Integration | [Email] |
-| [Member 2] | [College] | Frontend Dev / UI-UX | [Email] |
-| [Member 3] | [College] | Backend Dev / ML Engineer | [Email] |
-| [Member 4] | [College] | Designer / DevOps | [Email] |
-
----
 
 ## 1. Problem Statement & Relevance
 
@@ -360,10 +350,10 @@ In 1-3 years, PocketBuddy evolves from a student companion app to the **operatin
 
 | Resource | URL |
 |----------|-----|
-| GitHub | *[URL]* |
-| Demo Video | *[URL]* |
-| Live App (Frontend) | *[S3/CloudFront URL]* |
-| Live API | *[EC2 URL]/docs* |
+| GitHub | https://github.com/TishyaJ/DainikBuddy |
+| Demo Video | [Watch with Voice Walkthrough](https://drive.google.com/file/d/1vpBA75cYrnTS0vbK3vif_tguPqQzfQ1b/view?usp=drivesdk) |
+| Live App | http://54.206.59.45 |
+| Live API | http://54.206.59.45/docs |
 | API Documentation | Auto-generated Swagger UI |
 
 ---

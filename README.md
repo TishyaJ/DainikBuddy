@@ -1,6 +1,9 @@
 # PocketBuddy
 
-AI-powered wellness, finance, and productivity companion for students. Track moods, manage expenses, set goals, chat with AI buddies, join study groups, and build healthy habits — all in one gamified mobile-first app.
+> **🎬 [Watch Demo Video (with voice walkthrough)](https://drive.google.com/file/d/1vpBA75cYrnTS0vbK3vif_tguPqQzfQ1b/view?usp=drivesdk)** | **🌐 [Live App](http://54.206.59.45)** | **📡 [API Docs](http://54.206.59.45/docs)**
+
+AI-powered wellness, finance, and productivity companion for students. Track moods, manage expenses, set goals, chat with AI buddies, join study groups, and build healthy habits — all in one gamified mobile-first app. 
+
 
 ---
 
@@ -59,6 +62,12 @@ PocketBuddy/
 ├── diary.md                    ← Implementation decisions and architecture reasoning
 └── design_guidelines.json      ← UI/UX design system reference
 ```
+
+---
+
+## 🎬 Demo
+
+**[Watch the Demo Video (with voice walkthrough)](https://drive.google.com/file/d/1vpBA75cYrnTS0vbK3vif_tguPqQzfQ1b/view?usp=drivesdk)**
 
 ---
 
