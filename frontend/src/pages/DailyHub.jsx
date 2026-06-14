@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Header } from "../components/Header";
 import { SubTabs, Card, InsightCard } from "../components/SubTabs";
 import { Tasks } from "../components/Tasks";
-import { Smile, Frown, Meh, Heart, Zap, Mic, Camera, Plus, Target, Sparkles, TrendingUp, AlertTriangle, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Plus, Target, Sparkles, TrendingUp, AlertTriangle, RefreshCw, CheckCircle2, Moon, Info } from "lucide-react";
 import { VoiceInputButton } from "../components/VoiceInputButton";
 import { api } from "../lib/api";
 import { BarChart, Bar, XAxis, ResponsiveContainer, Cell, RadarChart, PolarGrid, PolarAngleAxis, Radar } from "recharts";
@@ -113,12 +113,9 @@ const Expense = () => {
           </button>
         ))}
       </div>
-      <div className="grid grid-cols-2 gap-2 mt-3">
-        <button onClick={save} data-testid="save-expense-btn" className="bdy-bg text-white font-semibold py-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95">
-          <Plus className="w-4 h-4" /> Add
-        </button>
-        <button data-testid="scan-receipt-btn" className="bg-white border border-[color:var(--bdy)] text-[color:var(--bdy)] font-semibold py-2.5 rounded-xl flex items-center justify-center gap-1">
-          <Camera className="w-4 h-4" /> Scan
+      <div className="mt-3">
+        <button onClick={save} data-testid="save-expense-btn" className="w-full bdy-bg text-white font-semibold py-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95">
+          <Plus className="w-4 h-4" /> Add Expense
         </button>
       </div>
       <div className="mt-4">
@@ -248,6 +245,7 @@ const Journal = () => {
             <span className="text-slate-700 line-clamp-2">{j.text}</span>
           </div>
         ))}
+        {list.length === 0 && <p className="text-xs text-slate-400">No journal entries yet. Write your first thought above.</p>}
       </div>
     </Card>
   );
@@ -279,8 +277,111 @@ const Goals = () => {
             )}
           </div>
         ))}
+        {goals.length === 0 && <p className="text-xs text-slate-400 py-3">No goals yet. Create one to start tracking progress.</p>}
       </div>
-      <InsightCard icon={Sparkles} title="AI Recommendation" text="Sleep goal is slipping. Bundle it with study cutoff: stop studying by 11pm to protect 7+ hours." />
+      {goals.length > 0 && goals.some(g => g.status === "missed") && (
+        <InsightCard icon={Sparkles} title="AI Recommendation" text="Some goals are behind schedule. Try breaking them into smaller daily steps to build momentum." />
+      )}
+    </Card>
+  );
+};
+
+const Sleep = () => {
+  const [hours, setHours] = useState("7");
+  const [quality, setQuality] = useState("good");
+  const [saved, setSaved] = useState(false);
+  const [weekly, setWeekly] = useState([]);
+
+  const load = async () => {
+    try {
+      const res = await api.get("/sleep/weekly");
+      setWeekly(res.data);
+    } catch { /* graceful degradation */ }
+  };
+  useEffect(() => { load(); }, []);
+
+  const save = async () => {
+    if (!hours || parseFloat(hours) <= 0) return;
+    await api.post("/sleep", {
+      hours: parseFloat(hours),
+      quality,
+      date: new Date().toISOString(),
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+    load();
+  };
+
+  const qualities = ["good", "ok", "poor"];
+
+  return (
+    <Card className="mx-5 mt-4">
+      <h3 className="font-display font-bold text-lg">Log Sleep</h3>
+      <p className="text-xs text-slate-500 mt-0.5">How did you sleep last night?</p>
+
+      <div className="mt-3">
+        <label className="text-xs font-semibold text-slate-600">Hours Slept</label>
+        <input
+          data-testid="sleep-hours"
+          type="number"
+          min="0"
+          max="24"
+          step="0.5"
+          value={hours}
+          onChange={(e) => setHours(e.target.value)}
+          className="w-full mt-1 bg-slate-50 rounded-xl px-3 py-2.5 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]"
+          placeholder="e.g. 7.5"
+        />
+      </div>
+
+      <div className="mt-3">
+        <label className="text-xs font-semibold text-slate-600">Sleep Quality</label>
+        <div className="flex gap-2 mt-1.5">
+          {qualities.map((q) => (
+            <button
+              key={q}
+              data-testid={`sleep-quality-${q}`}
+              onClick={() => setQuality(q)}
+              className={`flex-1 py-2 rounded-xl text-xs font-semibold capitalize transition ${quality === q
+                ? "bdy-bg text-white"
+                : "bg-slate-100 text-slate-600"
+                }`}
+            >
+              {q === "good" ? "😴 Good" : q === "ok" ? "😐 OK" : "😫 Poor"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <button
+        onClick={save}
+        data-testid="save-sleep-btn"
+        className="w-full mt-4 bdy-bg text-white font-semibold py-3 rounded-xl active:scale-95 transition"
+      >
+        {saved ? "Saved ✓" : "Log Sleep"}
+      </button>
+
+      <div className="mt-4">
+        <div className="text-xs font-semibold text-slate-500 mb-2">THIS WEEK</div>
+        <div className="space-y-1.5" data-testid="sleep-list">
+          {weekly.map((s, i) => (
+            <div key={i} className="flex justify-between items-center text-sm py-1.5 border-b border-slate-100">
+              <span className="text-slate-700 font-medium">{s.day}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs capitalize text-slate-500">{s.quality}</span>
+                <span className="font-semibold">{s.hours}h</span>
+              </div>
+            </div>
+          ))}
+          {weekly.length === 0 && <p className="text-xs text-slate-400">No sleep entries yet. Log your first night above.</p>}
+        </div>
+      </div>
+
+      <InsightCard
+        icon={Moon}
+        title="Sleep Tip"
+        text="Aim for 7–9 hours of consistent sleep. Log daily to track your patterns over time."
+      />
     </Card>
   );
 };
@@ -365,6 +466,7 @@ const Summary = () => {
   })) || [];
 
   const lowDomains = lb?.domains?.filter((d) => d.score < 40) || [];
+  const missingDomains = lb?.domains?.filter((d) => d.score === 0) || [];
 
   return (
     <div className="mx-5 mt-4 space-y-3">
@@ -412,7 +514,7 @@ const Summary = () => {
         <div data-testid="partial-data-indicator" className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
           <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
           <span className="text-xs text-amber-700 font-medium">
-            Limited data available ({lb.days_used || "< 7"} days). Scores will improve with more entries.
+            Limited data available ({lb.days_used ? Math.min(...Object.values(lb.days_used)) : "< 7"} days). Scores will improve with more entries.
           </span>
         </div>
       )}
@@ -485,6 +587,20 @@ const Summary = () => {
               ))}
             </div>
           )}
+          {/* Missing domain data encouragement */}
+          {missingDomains.length > 0 && (
+            <div className="mt-3 p-2.5 rounded-xl bg-amber-50 border border-amber-100" data-testid="summary-missing-domains">
+              <div className="flex items-start gap-2">
+                <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-semibold text-amber-700">Some domains need your input</p>
+                  <p className="text-[11px] text-amber-600 mt-0.5">
+                    Start logging {missingDomains.map((d) => d.name.toLowerCase()).join(", ")} data to see your full score. The more you log, the better your insights!
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </Card>
       )}
 
@@ -503,14 +619,21 @@ const Summary = () => {
             </button>
           </div>
         </Card>
+      ) : insights.length > 0 ? (
+        <div className="space-y-2" data-testid="daily-insights">
+          {insights.map((i, idx) => (
+            <InsightCard key={idx} icon={Sparkles} title={i.title} text={i.detail} />
+          ))}
+        </div>
       ) : (
-        insights.length > 0 && (
-          <div className="space-y-2" data-testid="daily-insights">
-            {insights.map((i, idx) => (
-              <InsightCard key={idx} icon={Sparkles} title={i.title} text={i.detail} />
-            ))}
+        <Card data-testid="insights-empty">
+          <div className="flex items-start gap-2 py-2">
+            <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-slate-500">
+              No insights yet. Log your mood, expenses, and sleep to get personalized AI recommendations based on your data.
+            </p>
           </div>
-        )
+        </Card>
       )}
 
       {/* Tomorrow's Plan Card (visible after 8 PM) */}
@@ -577,6 +700,7 @@ const TABS = [
   { key: "tasks", label: "Tasks", C: Tasks },
   { key: "expense", label: "Expense", C: Expense },
   { key: "journal", label: "Journal", C: Journal },
+  { key: "sleep", label: "Sleep", C: Sleep },
   { key: "goals", label: "Goals", C: Goals },
   { key: "summary", label: "AI Summary", C: Summary },
 ];

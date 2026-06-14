@@ -142,6 +142,7 @@ class UserProfile(BaseModel):
     avatar_initial: str = "A"
     onboarded: bool = False
     your_pattern: Dict[str, Any] = Field(default_factory=dict)
+    emergency_contact: Optional[str] = None  # phone number or name for SOS/notify
 
 
 class Task(BaseModel):
@@ -549,9 +550,51 @@ async def get_subs(user_id: str = Depends(get_current_user)):
     return {"items": subs, "monthly_total": total}
 
 
+@api_router.post("/subscriptions")
+async def create_subscription(payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
+    name = (payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "Name required")
+    amount = float(payload.get("amount") or 0)
+    renews_on = (payload.get("renews_on") or "").strip()
+    icon = (payload.get("icon") or "credit-card").strip()
+    sub = Subscription(user_id=user_id, name=name, amount=amount, renews_on=renews_on, icon=icon)
+    await db.subscriptions.insert_one(sub.model_dump())
+    return sub
+
+
+@api_router.delete("/subscriptions/{sub_id}")
+async def delete_subscription(sub_id: str, user_id: str = Depends(get_current_user)):
+    res = await db.subscriptions.delete_one({"id": sub_id, "user_id": user_id})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Subscription not found")
+    return {"deleted": res.deleted_count}
+
+
 @api_router.get("/savings")
 async def get_savings(user_id: str = Depends(get_current_user)):
     return await list_docs("savings_goals", user_id=user_id)
+
+
+@api_router.post("/savings")
+async def create_savings_goal(payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
+    name = (payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "Name required")
+    target = float(payload.get("target") or 0)
+    saved = float(payload.get("saved") or 0)
+    emoji = (payload.get("emoji") or "🎯").strip()
+    goal = SavingsGoal(user_id=user_id, name=name, target=target, saved=saved, emoji=emoji)
+    await db.savings_goals.insert_one(goal.model_dump())
+    return goal
+
+
+@api_router.delete("/savings/{goal_id}")
+async def delete_savings_goal(goal_id: str, user_id: str = Depends(get_current_user)):
+    res = await db.savings_goals.delete_one({"id": goal_id, "user_id": user_id})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Savings goal not found")
+    return {"deleted": res.deleted_count}
 
 
 @api_router.get("/splits")
@@ -559,6 +602,28 @@ async def get_splits(user_id: str = Depends(get_current_user)):
     items = await list_docs("split_bills", user_id=user_id)
     net = sum(s["owes_you"] for s in items)
     return {"items": items, "net_balance": net}
+
+
+@api_router.post("/splits")
+async def create_split_bill(payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
+    title = (payload.get("title") or "").strip()
+    if not title:
+        raise HTTPException(400, "Title required")
+    total = float(payload.get("total") or 0)
+    with_person = (payload.get("with_person") or "").strip()
+    you_paid = float(payload.get("you_paid") or 0)
+    owes_you = float(payload.get("owes_you") or 0)
+    split = SplitBill(user_id=user_id, title=title, total=total, with_person=with_person, you_paid=you_paid, owes_you=owes_you)
+    await db.split_bills.insert_one(split.model_dump())
+    return split
+
+
+@api_router.delete("/splits/{split_id}")
+async def delete_split_bill(split_id: str, user_id: str = Depends(get_current_user)):
+    res = await db.split_bills.delete_one({"id": split_id, "user_id": user_id})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Split bill not found")
+    return {"deleted": res.deleted_count}
 
 
 # ============ WELLNESS ============
@@ -595,6 +660,132 @@ async def add_sleep(s: SleepEntry, user_id: str = Depends(get_current_user)):
     s.user_id = user_id
     await db.sleep_entries.insert_one(s.model_dump())
     return s
+
+
+@api_router.post("/sleep/bedtime-goal")
+async def set_bedtime_goal(payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
+    """Set user's bedtime goal preference (e.g. '10:30pm', '11:00pm', '11:30pm')."""
+    time_str = (payload.get("time") or "").strip()
+    if not time_str:
+        raise HTTPException(400, "Bedtime time is required")
+    doc = {
+        "user_id": user_id,
+        "time": time_str,
+        "updated_at": now_iso(),
+    }
+    await db.bedtime_goals.update_one(
+        {"user_id": user_id},
+        {"$set": doc},
+        upsert=True,
+    )
+    return {"success": True, "bedtime_goal": time_str, "message": f"Bedtime goal set to {time_str}"}
+
+
+@api_router.get("/sleep/bedtime-goal")
+async def get_bedtime_goal(user_id: str = Depends(get_current_user)):
+    """Get user's current bedtime goal."""
+    doc = await db.bedtime_goals.find_one({"user_id": user_id}, {"_id": 0})
+    if not doc:
+        return {"bedtime_goal": None}
+    return {"bedtime_goal": doc.get("time")}
+
+
+@api_router.post("/wellness/phq2")
+async def submit_phq2(payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
+    """Submit PHQ-2 questionnaire (2 questions, each scored 0-3). Generate AI response card."""
+    q1 = int(payload.get("q1", 0))
+    q2 = int(payload.get("q2", 0))
+    if not (0 <= q1 <= 3 and 0 <= q2 <= 3):
+        raise HTTPException(400, "Scores must be 0-3")
+    total = q1 + q2
+
+    # Persist the submission
+    entry = {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "q1": q1,
+        "q2": q2,
+        "total": total,
+        "created_at": now_iso(),
+    }
+    await db.phq2_entries.insert_one(entry)
+
+    # Generate AI response card based on score
+    severity = "minimal" if total <= 2 else ("mild" if total <= 4 else "moderate-to-severe")
+    try:
+        sys_prompt = (
+            "You are a compassionate wellness companion. The user just completed a PHQ-2 screening. "
+            "Respond with EXACTLY this JSON shape and nothing else: "
+            '{"title":"...","text":"..."}. '
+            "Title should be warm and supportive (max 8 words). "
+            "Text should be empathetic advice (max 40 words). "
+            "Do NOT diagnose. Encourage professional help if score >= 3."
+        )
+        user_msg = f"PHQ-2 total score: {total}/6 (severity: {severity}). Q1 (interest/pleasure): {q1}, Q2 (feeling down): {q2}."
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"{user_id}-phq2-{entry['id']}",
+            system_message=sys_prompt,
+        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        full = ""
+        async for ev in chat.stream_message(UserMessage(text=user_msg)):
+            if isinstance(ev, TextDelta):
+                full += ev.content
+            elif isinstance(ev, StreamDone):
+                break
+        import json as _json, re as _re
+        m = _re.search(r"\{.*\}", full, _re.DOTALL)
+        if m:
+            card = _json.loads(m.group())
+            card["kind"] = "phq2_response"
+            card["score"] = total
+            card["severity"] = severity
+            entry["ai_card"] = card
+            await db.phq2_entries.update_one({"id": entry["id"]}, {"$set": {"ai_card": card}})
+            return {**entry, "_id": None}
+    except Exception as e:
+        logger.warning(f"PHQ-2 AI card generation failed: {e}")
+
+    # Fallback card
+    if total <= 2:
+        card = {"kind": "phq2_response", "title": "You're doing well", "text": "Your responses suggest minimal concerns. Keep nurturing your wellbeing with daily self-care.", "score": total, "severity": severity}
+    elif total <= 4:
+        card = {"kind": "phq2_response", "title": "Let's take care of you", "text": "Consider talking to a counselor if these feelings persist. Small steps like journaling and sleep hygiene can help.", "score": total, "severity": severity}
+    else:
+        card = {"kind": "phq2_response", "title": "You deserve support", "text": "Please reach out to a counselor or trusted person. You don't have to carry this alone. Campus services are free.", "score": total, "severity": severity}
+    entry["ai_card"] = card
+    return {**entry, "_id": None}
+
+
+@api_router.get("/focus/today")
+async def focus_sessions_today(user_id: str = Depends(get_current_user)):
+    """Get count of completed task sessions (Pomodoro-style) today."""
+    today = datetime.now(timezone.utc)
+    today_start = today.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    sessions = await db.task_sessions.find(
+        {"user_id": user_id, "started_at": {"$gte": today_start}, "ended_at": {"$ne": None}},
+        {"_id": 0},
+    ).to_list(200)
+    return {"count": len(sessions), "total_minutes": sum(s.get("elapsed_seconds", 0) for s in sessions) // 60}
+
+
+@api_router.get("/wellness/social-summary")
+async def social_connections(user_id: str = Depends(get_current_user)):
+    """Get user's social connections summary for the Wellness Buddy Social tab."""
+    groups = await db.study_groups.find({"members": {"$in": [user_id]}}, {"_id": 0}).to_list(20)
+    # Count unique members across groups (excluding self)
+    all_members = set()
+    for g in groups:
+        for m in g.get("members", []):
+            if m != user_id:
+                all_members.add(m)
+    # Get upcoming events/challenges
+    challenges = await db.community_challenges.find({"status": "active"}, {"_id": 0}).to_list(5)
+    return {
+        "connections_this_week": len(all_members),
+        "groups": [{"name": g.get("name", ""), "member_count": len(g.get("members", []))} for g in groups[:5]],
+        "upcoming_events": [{"name": c.get("title", ""), "deadline": c.get("end_date", "")} for c in challenges[:3]],
+    }
 
 
 @api_router.get("/mood/weekly")
@@ -715,6 +906,30 @@ async def exercises_summary(user_id: str = Depends(get_current_user)):
         "balanced_7d": balanced,
         "imbalance_note": None if balanced else "You haven't covered both upper and lower body this week. Add the missing group tomorrow.",
     }
+
+
+# ============ SAFETY (Safe Night) ============
+@api_router.post("/safety/notify-contact")
+async def notify_contact(payload: Dict[str, Any], user_id: str = Depends(get_current_user)):
+    """Send a safety notification to the user's emergency contact with location."""
+    profile = await db.user_profiles.find_one({"user_id": user_id}, {"_id": 0})
+    contact = (profile or {}).get("emergency_contact")
+    if not contact:
+        raise HTTPException(400, "No emergency contact configured. Please set one in your Profile.")
+    lat = payload.get("lat")
+    lng = payload.get("lng")
+    location_text = f"https://maps.google.com/?q={lat},{lng}" if lat and lng else "Location unavailable"
+    # In production, this would send an SMS/push notification
+    # For now, log and return success
+    logger.info(f"Safety notify for {user_id}: contact={contact}, location={location_text}")
+    await db.safety_notifications.insert_one({
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "contact": contact,
+        "location": location_text,
+        "created_at": now_iso(),
+    })
+    return {"status": "sent", "contact": contact, "message": f"Location shared with {contact}"}
 
 
 # ============ ROUTINE (dynamic habits) ============

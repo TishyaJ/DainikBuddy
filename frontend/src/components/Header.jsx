@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { Flame } from "lucide-react";
+import { Flame, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { NotificationBell } from "./NotificationBell";
+import { useGamification } from "../context/GamificationContext";
 
 export const Header = ({ title, subtitle, gradient = false }) => {
   const [profile, setProfile] = useState({ streak_days: 0, avatar_initial: "A" });
+  const { status } = useGamification();
   const nav = useNavigate();
   useEffect(() => {
     api.get("/profile").then((r) => setProfile(r.data)).catch(() => { });
@@ -27,6 +29,17 @@ export const Header = ({ title, subtitle, gradient = false }) => {
           )}
         </div>
         <div className="flex items-center gap-2">
+          {status && (
+            <button
+              data-testid="xp-level-indicator"
+              onClick={() => nav("/profile")}
+              aria-label={`Level ${status.level}, ${status.total_xp} XP. View profile for details.`}
+              className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${gradient ? "bg-white/20 text-white" : "bg-purple-100 text-purple-700"
+                }`}
+            >
+              <Zap className="w-3.5 h-3.5" /> Lv{status.level}
+            </button>
+          )}
           <div
             data-testid="streak-counter"
             className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${gradient ? "bg-white/20 text-white" : "bg-orange-100 text-orange-700"

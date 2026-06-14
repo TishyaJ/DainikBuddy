@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Header } from "../components/Header";
 import { SubTabs, Card, InsightCard } from "../components/SubTabs";
-import { Moon, Brain, Activity, Calendar, ClipboardList, Timer, Users, Heart, Phone, Sparkles, Play, Pause } from "lucide-react";
+import { Moon, Brain, Activity, Calendar, ClipboardList, Timer, Users, Heart, Phone, Sparkles, Play, Pause, Check, Save } from "lucide-react";
 import { api } from "../lib/api";
 import { BarChart, Bar, XAxis, ResponsiveContainer, Cell } from "recharts";
 
@@ -22,10 +22,18 @@ const ScoreRing = ({ score, label }) => {
   );
 };
 
-const Dashboard = () => {
+const Dashboard = ({ onNavigate }) => {
   const [s, setS] = useState(null);
-  useEffect(() => { api.get("/wellness/scores").then((r) => setS(r.data)); }, []);
+  useEffect(() => { api.get("/wellness/scores").then((r) => setS(r.data)).catch(() => { }); }, []);
   if (!s) return null;
+
+  const actions = [
+    { i: Brain, t: "Quick Check-in", s: "Track your mood & stress", target: "stress" },
+    { i: Heart, t: "Breathing Exercise", s: "3 min · reduce stress", target: "support" },
+    { i: Timer, t: "Focus Session", s: "25 min Pomodoro", target: "focus" },
+    { i: Moon, t: "Sleep Tips", s: "Improve sleep quality", target: "sleep" },
+  ];
+
   return (
     <div className="mx-5 mt-4 space-y-3">
       <Card>
@@ -38,13 +46,10 @@ const Dashboard = () => {
       <Card>
         <h3 className="font-display font-bold text-base">Daily Wellness Actions</h3>
         <div className="mt-3 space-y-2">
-          {[
-            { i: Brain, t: "Quick Check-in", s: "Track your mood & stress" },
-            { i: Heart, t: "Breathing Exercise", s: "3 min · reduce stress" },
-            { i: Timer, t: "Focus Session", s: "25 min Pomodoro" },
-            { i: Moon, t: "Sleep Tips", s: "Improve sleep quality" },
-          ].map((a, idx) => (
-            <button key={idx} data-testid={`wellness-action-${idx}`} className="w-full flex items-center gap-3 p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition">
+          {actions.map((a, idx) => (
+            <button key={idx} data-testid={`wellness-action-${idx}`}
+              onClick={() => onNavigate(a.target)}
+              className="w-full flex items-center gap-3 p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition">
               <div className="w-9 h-9 rounded-xl bdy-soft flex items-center justify-center"><a.i className="w-4 h-4 bdy-text" /></div>
               <div className="flex-1 text-left">
                 <div className="text-sm font-semibold">{a.t}</div>
@@ -60,11 +65,41 @@ const Dashboard = () => {
 
 const Sleep = () => {
   const [data, setData] = useState([]);
-  useEffect(() => { api.get("/sleep/weekly").then((r) => setData(r.data)); }, []);
+  const [bedtimeGoal, setBedtimeGoal] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [sleepForm, setSleepForm] = useState({ hours: 7, quality: "good" });
+  const [sleepSaved, setSleepSaved] = useState(false);
+
+  useEffect(() => {
+    api.get("/sleep/weekly").then((r) => setData(r.data)).catch(() => { });
+    api.get("/sleep/bedtime-goal").then((r) => setBedtimeGoal(r.data.bedtime_goal)).catch(() => { });
+  }, []);
+
   const last = data[data.length - 1];
   const avg = data.length ? data.reduce((s, d) => s + d.hours, 0) / data.length : 0;
   const diffMin = last ? Math.round((last.hours - avg) * 60) : 0;
   const formatHrs = (h) => `${Math.floor(h)}h ${Math.round((h - Math.floor(h)) * 60)}m`;
+
+  const handleBedtimeGoal = async (time) => {
+    setSaving(true);
+    try {
+      const res = await api.post("/sleep/bedtime-goal", { time });
+      setBedtimeGoal(time);
+    } catch (e) { /* ignore */ }
+    setSaving(false);
+  };
+
+  const handleSaveSleep = async () => {
+    setSleepSaved(false);
+    try {
+      await api.post("/sleep", { hours: parseFloat(sleepForm.hours), quality: sleepForm.quality });
+      setSleepSaved(true);
+      // Refresh weekly data
+      const r = await api.get("/sleep/weekly");
+      setData(r.data);
+    } catch (e) { /* ignore */ }
+  };
+
   return (
     <div className="mx-5 mt-4 space-y-3">
       <Card>
@@ -92,11 +127,56 @@ const Sleep = () => {
           </ResponsiveContainer>
         </div>
       </Card>
+
+      {/* Sleep Entry Form */}
+      <Card>
+        <h3 className="font-display font-bold text-sm">Log Sleep</h3>
+        <div className="mt-2 space-y-3">
+          <div>
+            <label className="text-xs text-slate-500 font-semibold">Hours slept</label>
+            <input
+              type="number"
+              min="0" max="24" step="0.5"
+              value={sleepForm.hours}
+              onChange={(e) => setSleepForm(f => ({ ...f, hours: e.target.value }))}
+              className="w-full mt-1 p-2 rounded-xl bg-slate-50 border border-slate-200 text-sm outline-none"
+              data-testid="sleep-hours-input"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-slate-500 font-semibold">Quality</label>
+            <div className="grid grid-cols-3 gap-2 mt-1">
+              {["good", "ok", "poor"].map((q) => (
+                <button key={q} data-testid={`sleep-quality-${q}`}
+                  onClick={() => setSleepForm(f => ({ ...f, quality: q }))}
+                  className={`py-1.5 rounded-lg text-xs font-semibold transition ${sleepForm.quality === q ? "bdy-bg text-white" : "bg-slate-50 text-slate-700 hover:bg-slate-100"}`}>
+                  {q === "good" ? "😊 Good" : q === "ok" ? "😐 OK" : "😴 Poor"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button onClick={handleSaveSleep} data-testid="save-sleep-btn"
+            className="w-full py-2 rounded-xl bdy-bg text-white text-sm font-semibold flex items-center justify-center gap-2 active:scale-95">
+            {sleepSaved ? <><Check className="w-4 h-4" /> Saved!</> : <><Save className="w-4 h-4" /> Save Sleep Entry</>}
+          </button>
+        </div>
+      </Card>
+
+      {/* Bedtime Planner */}
       <Card>
         <h3 className="font-display font-bold text-sm">Bedtime Planner</h3>
+        {bedtimeGoal && (
+          <p className="text-xs text-emerald-600 font-semibold mt-1">Current goal: {bedtimeGoal}</p>
+        )}
         <div className="mt-2 grid grid-cols-3 gap-2">
           {["10:30pm", "11:00pm", "11:30pm"].map((t) => (
-            <button key={t} className="p-2 rounded-xl bg-slate-50 text-xs font-semibold text-slate-700 hover:bdy-soft" data-testid={`bedtime-${t}`}>{t}</button>
+            <button key={t}
+              onClick={() => handleBedtimeGoal(t)}
+              disabled={saving}
+              data-testid={`bedtime-${t}`}
+              className={`p-2 rounded-xl text-xs font-semibold transition ${bedtimeGoal === t ? "bdy-bg text-white" : "bg-slate-50 text-slate-700 hover:bdy-soft"}`}>
+              {t}
+            </button>
           ))}
         </div>
       </Card>
@@ -108,10 +188,9 @@ const Burnout = () => {
   const [score, setScore] = useState(50);
   const [sleeps, setSleeps] = useState([]);
   useEffect(() => {
-    api.get("/wellness/scores").then((r) => setScore(r.data.burnout_score));
-    api.get("/sleep/weekly").then((r) => setSleeps(r.data));
+    api.get("/wellness/scores").then((r) => setScore(r.data.burnout_score)).catch(() => { });
+    api.get("/sleep/weekly").then((r) => setSleeps(r.data)).catch(() => { });
   }, []);
-  // marker = inverse of burnout_score (higher score = healthier = left side of gradient)
   const markerLeft = `${Math.max(2, Math.min(96, 100 - score))}%`;
   return (
     <div className="mx-5 mt-4 space-y-3">
@@ -140,15 +219,16 @@ const Burnout = () => {
 
 const AICard = ({ card }) => {
   const isPlan = card.kind === "plan" || /plan/i.test(card.kind || "");
+  const isPhq2 = card.kind === "phq2_response";
   return (
-    <div className={`rounded-2xl p-4 ${isPlan ? "bg-emerald-50 border border-emerald-100" : "bdy-soft border border-[color:var(--bdy)]/15"}`}>
+    <div className={`rounded-2xl p-4 ${isPhq2 ? "bg-blue-50 border border-blue-100" : isPlan ? "bg-emerald-50 border border-emerald-100" : "bdy-soft border border-[color:var(--bdy)]/15"}`}>
       <div className="flex items-start gap-3">
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isPlan ? "bg-emerald-500" : "bdy-bg"} text-white`}>
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isPhq2 ? "bg-blue-500" : isPlan ? "bg-emerald-500" : "bdy-bg"} text-white`}>
           <Sparkles className="w-4 h-4" />
         </div>
         <div className="flex-1">
           <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-            {isPlan ? "Plan" : "Motivation"}
+            {isPhq2 ? "PHQ-2 Response" : isPlan ? "Plan" : "Motivation"}
           </div>
           <div className="text-sm font-display font-bold text-slate-900">{card.title}</div>
           <div className="text-xs text-slate-700 mt-1 leading-relaxed">{card.text}</div>
@@ -163,11 +243,10 @@ const Stress = () => {
   const [cards, setCards] = useState([]);
   const [loadingCards, setLoadingCards] = useState(true);
   useEffect(() => {
-    api.get("/mood/weekly").then((r) => setData(r.data));
+    api.get("/mood/weekly").then((r) => setData(r.data)).catch(() => { });
     api.get("/wellness/cards?kind=stress").then((r) => { setCards(r.data); setLoadingCards(false); }).catch(() => setLoadingCards(false));
   }, []);
   const moodEmoji = { great: "😄", good: "🙂", okay: "😐", bad: "🙁", terrible: "😢" };
-  // dynamic triggers from data
   const stressAvg = data.length ? Math.round(data.reduce((s, d) => s + (d.stress || 0), 0) / data.length) : 0;
   const worstDay = [...data].sort((a, b) => (b.stress || 0) - (a.stress || 0))[0];
   return (
@@ -206,7 +285,7 @@ const Stress = () => {
 
 const Routine = () => {
   const [habits, setHabits] = useState([]);
-  useEffect(() => { api.get("/routine/habits").then((r) => setHabits(r.data)); }, []);
+  useEffect(() => { api.get("/routine/habits").then((r) => setHabits(r.data)).catch(() => { }); }, []);
   const worst = [...habits].sort((a, b) => a.value - b.value)[0];
   return (
     <div className="mx-5 mt-4 space-y-3">
@@ -234,40 +313,123 @@ const Routine = () => {
   );
 };
 
-const CheckIns = () => (
-  <div className="mx-5 mt-4 space-y-3">
-    <Card>
-      <h3 className="font-display font-bold text-base">PHQ-2 Check-In</h3>
-      <p className="text-xs text-slate-500">Over the last 2 weeks…</p>
-      {["Felt little interest or pleasure?", "Felt down or hopeless?"].map((q, i) => (
-        <div key={i} className="mt-3">
-          <p className="text-sm font-semibold">{q}</p>
-          <div className="grid grid-cols-4 gap-1.5 mt-2">
-            {["Never", "Some days", "Most days", "Daily"].map((o, j) => (
-              <button key={j} data-testid={`phq-${i}-${j}`} className="py-1.5 rounded-lg bg-slate-50 text-[11px] font-semibold hover:bdy-soft">{o}</button>
-            ))}
+const CheckIns = () => {
+  const [answers, setAnswers] = useState([null, null]);
+  const [submitting, setSubmitting] = useState(false);
+  const [responseCard, setResponseCard] = useState(null);
+  const [reflection, setReflection] = useState("");
+  const [reflectionSaved, setReflectionSaved] = useState(false);
+
+  const questions = ["Felt little interest or pleasure?", "Felt down or hopeless?"];
+  const options = ["Never", "Some days", "Most days", "Daily"];
+
+  const handleAnswer = (qIdx, optIdx) => {
+    setAnswers((prev) => {
+      const next = [...prev];
+      next[qIdx] = optIdx;
+      return next;
+    });
+  };
+
+  const handleSubmitPHQ2 = async () => {
+    if (answers[0] === null || answers[1] === null) return;
+    setSubmitting(true);
+    try {
+      const res = await api.post("/wellness/phq2", { q1: answers[0], q2: answers[1] });
+      if (res.data.ai_card) {
+        setResponseCard(res.data.ai_card);
+      }
+    } catch (e) { /* ignore */ }
+    setSubmitting(false);
+  };
+
+  const handleSaveReflection = async () => {
+    if (!reflection.trim()) return;
+    setReflectionSaved(false);
+    try {
+      await api.post("/journal", { text: reflection, sentiment: null });
+      setReflectionSaved(true);
+      setTimeout(() => setReflectionSaved(false), 3000);
+    } catch (e) { /* ignore */ }
+  };
+
+  const canSubmit = answers[0] !== null && answers[1] !== null;
+
+  return (
+    <div className="mx-5 mt-4 space-y-3">
+      <Card>
+        <h3 className="font-display font-bold text-base">PHQ-2 Check-In</h3>
+        <p className="text-xs text-slate-500">Over the last 2 weeks…</p>
+        {questions.map((q, i) => (
+          <div key={i} className="mt-3">
+            <p className="text-sm font-semibold">{q}</p>
+            <div className="grid grid-cols-4 gap-1.5 mt-2">
+              {options.map((o, j) => (
+                <button key={j} data-testid={`phq-${i}-${j}`}
+                  onClick={() => handleAnswer(i, j)}
+                  className={`py-1.5 rounded-lg text-[11px] font-semibold transition ${answers[i] === j ? "bdy-bg text-white" : "bg-slate-50 hover:bdy-soft"}`}>
+                  {o}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
-    </Card>
-    <Card>
-      <h3 className="font-display font-bold text-sm">Reflection</h3>
-      <p className="text-xs text-slate-500 mt-1">Write 1 thing you're proud of today.</p>
-      <textarea data-testid="reflection-text" rows={3} className="w-full mt-2 bg-slate-50 rounded-xl p-2 text-sm border border-slate-200 outline-none" />
-    </Card>
-  </div>
-);
+        ))}
+        <button
+          onClick={handleSubmitPHQ2}
+          disabled={!canSubmit || submitting}
+          data-testid="phq2-submit"
+          className={`w-full mt-4 py-2.5 rounded-xl text-sm font-semibold transition ${canSubmit ? "bdy-bg text-white active:scale-95" : "bg-slate-100 text-slate-400 cursor-not-allowed"}`}>
+          {submitting ? "Submitting..." : "Submit Check-In"}
+        </button>
+      </Card>
+
+      {responseCard && <AICard card={responseCard} />}
+
+      <Card>
+        <h3 className="font-display font-bold text-sm">Reflection</h3>
+        <p className="text-xs text-slate-500 mt-1">Write 1 thing you're proud of today.</p>
+        <textarea
+          data-testid="reflection-text"
+          rows={3}
+          value={reflection}
+          onChange={(e) => setReflection(e.target.value)}
+          className="w-full mt-2 bg-slate-50 rounded-xl p-2 text-sm border border-slate-200 outline-none"
+          placeholder="I'm proud that..."
+        />
+        <button
+          onClick={handleSaveReflection}
+          disabled={!reflection.trim()}
+          data-testid="save-reflection-btn"
+          className={`w-full mt-2 py-2 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition ${reflection.trim() ? "bdy-bg text-white active:scale-95" : "bg-slate-100 text-slate-400 cursor-not-allowed"}`}>
+          {reflectionSaved ? <><Check className="w-4 h-4" /> Saved!</> : <><Save className="w-4 h-4" /> Save Reflection</>}
+        </button>
+      </Card>
+    </div>
+  );
+};
 
 const Focus = () => {
   const [running, setRunning] = useState(false);
   const [time, setTime] = useState(25 * 60);
+  const [todaySessions, setTodaySessions] = useState(0);
+  const [todayMinutes, setTodayMinutes] = useState(0);
+
+  useEffect(() => {
+    api.get("/focus/today").then((r) => {
+      setTodaySessions(r.data.count);
+      setTodayMinutes(r.data.total_minutes);
+    }).catch(() => { });
+  }, []);
+
   useEffect(() => {
     if (!running) return;
     const id = setInterval(() => setTime((t) => (t > 0 ? t - 1 : 0)), 1000);
     return () => clearInterval(id);
   }, [running]);
+
   const mm = String(Math.floor(time / 60)).padStart(2, "0");
   const ss = String(time % 60).padStart(2, "0");
+
   return (
     <div className="mx-5 mt-4 space-y-3">
       <Card>
@@ -280,7 +442,9 @@ const Focus = () => {
           </button>
         </div>
         <div className="mt-4">
-          <div className="text-xs font-semibold text-slate-500">Today: 3 sessions completed 🎉</div>
+          <div className="text-xs font-semibold text-slate-500" data-testid="focus-session-count">
+            Today: {todaySessions} session{todaySessions !== 1 ? "s" : ""} completed ({todayMinutes} min) {todaySessions > 0 ? "🎉" : ""}
+          </div>
         </div>
       </Card>
       <Card>
@@ -296,22 +460,67 @@ const Focus = () => {
   );
 };
 
-const Social = () => (
-  <div className="mx-5 mt-4 space-y-3">
-    <Card>
-      <h3 className="font-display font-bold text-base">Social Balance</h3>
-      <p className="text-xs text-slate-500 mt-1">You connected with 3 people this week.</p>
-      <div className="mt-3 space-y-2">
-        {[{ n: "Study group", d: "Tomorrow 5pm" }, { n: "Movie night", d: "Saturday" }, { n: "Coffee w/ Priya", d: "Sunday" }].map((e, i) => (
-          <div key={i} className="p-3 rounded-xl bg-slate-50 flex justify-between">
-            <span className="text-sm font-semibold">{e.n}</span>
-            <span className="text-xs text-slate-500">{e.d}</span>
+const Social = () => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get("/wellness/social-summary").then((r) => {
+      setData(r.data);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return (
+    <div className="mx-5 mt-4"><Card><div className="text-xs text-slate-500">Loading social data…</div></Card></div>
+  );
+
+  const hasData = data && (data.connections_this_week > 0 || data.groups?.length > 0);
+
+  return (
+    <div className="mx-5 mt-4 space-y-3">
+      <Card>
+        <h3 className="font-display font-bold text-base">Social Balance</h3>
+        {hasData ? (
+          <>
+            <p className="text-xs text-slate-500 mt-1">
+              You connected with {data.connections_this_week} {data.connections_this_week === 1 ? "person" : "people"} this week.
+            </p>
+            {data.groups?.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {data.groups.map((g, i) => (
+                  <div key={i} className="p-3 rounded-xl bg-slate-50 flex justify-between">
+                    <span className="text-sm font-semibold">{g.name}</span>
+                    <span className="text-xs text-slate-500">{g.member_count} members</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {data.upcoming_events?.length > 0 && (
+              <div className="mt-3">
+                <h4 className="text-xs font-semibold text-slate-500">Upcoming</h4>
+                <div className="mt-1 space-y-1.5">
+                  {data.upcoming_events.map((e, i) => (
+                    <div key={i} className="p-2 rounded-lg bg-slate-50 flex justify-between">
+                      <span className="text-xs font-semibold">{e.name}</span>
+                      <span className="text-[10px] text-slate-500">{e.deadline}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="mt-3 text-center py-6">
+            <Users className="w-8 h-8 text-slate-300 mx-auto" />
+            <p className="text-sm text-slate-500 mt-2">No social connections yet</p>
+            <p className="text-xs text-slate-400 mt-1">Join a study group to connect with peers</p>
           </div>
-        ))}
-      </div>
-    </Card>
-  </div>
-);
+        )}
+      </Card>
+    </div>
+  );
+};
 
 const Support = () => (
   <div className="mx-5 mt-4 space-y-3">
@@ -355,12 +564,20 @@ const TABS = [
 
 export default function WellnessBuddy() {
   const [tab, setTab] = useState("dash");
-  const Active = TABS.find((t) => t.key === tab).C;
+  const ActiveTab = TABS.find((t) => t.key === tab);
+  const Active = ActiveTab.C;
+
+  // Pass onNavigate to Dashboard so action buttons can switch tabs
+  const renderActive = () => {
+    if (tab === "dash") return <Dashboard onNavigate={setTab} />;
+    return <Active />;
+  };
+
   return (
     <div className="flex-1 overflow-auto scroll-area pb-4">
       <Header title="Wellness Buddy ☁️" subtitle="Mind. Body. Balance." gradient />
       <SubTabs tabs={TABS} active={tab} onChange={setTab} testid="well-tab" />
-      <Active />
+      {renderActive()}
     </div>
   );
 }

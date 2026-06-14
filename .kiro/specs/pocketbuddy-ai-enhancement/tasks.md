@@ -222,7 +222,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
   - Ensure all tests pass, ask the user if questions arise.
 
 - [x] 12. Daily Insights and Life-Balance Scoring
-  - [ ] 12.1 Create backend life-balance and daily insights endpoints
+  - [x] 12.1 Create backend life-balance and daily insights endpoints
     - Create/update `/api/life-balance` endpoint with 5-domain radar scores (Finance, Wellness, Academics, Social, Self-Care), each integer 0–100
     - Compute from user-inputted data: Finance from expense-to-budget ratio + savings progress, Wellness from mood avg + sleep quality, Academics from task completion + study time, Social from group activity, Self-Care from exercise frequency + journal frequency
     - Create/update `/api/insights/daily` endpoint generating exactly 3 AI insight cards (financial tip, wellness suggestion, productivity recommendation) referencing specific user data points
@@ -304,8 +304,8 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
 - [x] 15. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 16. UI Component Integration and Data Input Flows
-  - [ ] 16.1 Wire all Daily Hub input components to backend APIs
+- [x] 16. UI Component Integration and Data Input Flows
+  - [x] 16.1 Wire all Daily Hub input components to backend APIs
     - Ensure mood check-in (mood + energy + stress + motivation sliders) persists via `/api/mood`
     - Ensure expense logging (amount + merchant + category) persists via `/api/expenses`
     - Ensure journal entry (text) persists via `/api/journal`
@@ -315,13 +315,13 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - Display empty states with data input prompts when no user data exists
     - _Requirements: 12.2, 12.3, 12.4_
 
-  - [ ] 16.2 Wire Finance Buddy domain input components
+  - [x] 16.2 Wire Finance Buddy domain input components
     - Ensure expense logging, budget category allocation editing, subscription add/remove, savings goal creation (target amount), split bill entry all functional with real API calls
     - Remove "Scan Receipt" button from Daily Hub Expense tab and Finance Buddy Expenses tab
     - All financial graphs and AI insights derive exclusively from user-inputted entries
     - _Requirements: 12.1, 12.5, 12.12_
 
-  - [ ] 16.3 Wire Wellness Buddy domain input components
+  - [x] 16.3 Wire Wellness Buddy domain input components
     - Ensure daily mood check-in, sleep entry (hours + quality + bedtime/waketime), bedtime goal selection, reflection text entry all functional
     - Wire PHQ-2 questionnaire: collect both answers, POST to `/wellness/phq2`, display AI-generated response card
     - Wire bedtime planner time buttons (10:30pm, 11:00pm, 11:30pm) to POST `/sleep/bedtime-goal`
@@ -329,14 +329,14 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - All wellness scores and AI cards derive exclusively from user-inputted entries
     - _Requirements: 12.6, 12.13, 12.14, 12.17_
 
-  - [ ] 16.4 Wire Discover Buddy domain input components
+  - [x] 16.4 Wire Discover Buddy domain input components
     - Ensure exercise creation (name + body part + target minutes), session start/stop with elapsed time, discovery goal creation all functional
     - Wire "Notify Contact" button to send location notification to emergency contact
     - Wire "SOS" button to initiate emergency call
     - All fitness summaries derive exclusively from user-inputted exercise sessions
     - _Requirements: 12.7, 12.15_
 
-  - [ ] 16.5 Wire ChatCenter and AI Summary integrations
+  - [x] 16.5 Wire ChatCenter and AI Summary integrations
     - ChatCenter: fetch `/life-balance`, `/insights/daily`, `/insights/weekly` and render Helper Buddy command center with radar chart, daily insights, weekly review
     - Daily Hub AI Summary: fetch and render life-balance radar + 3 insight cards
     - Handle partial endpoint failures: render successful sections, show inline error for failed
@@ -344,7 +344,7 @@ This plan implements the PocketBuddy AI enhancement in incremental waves: starti
     - AI acknowledges missing domain data and encourages user to input it
     - _Requirements: 12.10, 12.11, 12.18, 12.19, 12.20_
 
-  - [ ] 16.6 Integrate new features into navigation structure
+  - [x] 16.6 Integrate new features into navigation structure
     - Add gamification XP display, notification center, social groups, trends view as screens/sections accessible via BottomNav or SubTabs
     - Ensure every interactive element triggers a functional API call or navigates to functional screen
     - No non-functional placeholder buttons
