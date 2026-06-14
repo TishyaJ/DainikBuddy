@@ -651,3 +651,69 @@ All critical flows verified:
 
 ### Summary
 Completed the entire UI/UX Coherence task group (Task 17, all 4 subtasks) plus three additional features requested by the user: Goal Progress Update UI (tap-to-expand with slider), Community Challenge full lifecycle (create, join, complete with reflection + mood, celebrate with XP, close for creator), and a Task/Goal History System (archive/delete actions, timeline view in Profile with date grouping and time filters). Final integration test against live servers verified 55 endpoints with 54 passing (1 transient profile issue for fresh test accounts). Task 18 (Final Checkpoint) marked complete.
+
+
+---
+
+## Session: June 14, 2026 — Documentation & Reproducibility Suite
+
+### Files Created
+| File | Description |
+|------|-------------|
+| `backend/README.md` | Comprehensive backend documentation — architecture overview, endpoint catalog (55+ endpoints across 10 routers), file descriptions, setup instructions, environment variables, development guidelines, testing strategy, common pitfalls |
+| `frontend/README.md` | Updated frontend documentation — architecture overview, component catalog, page descriptions, context providers, setup instructions, build commands, styling system, development guidelines |
+| `REPRODUCIBILITY.md` | Full workspace reproducibility guide — prerequisites, step-by-step setup for both servers, verification checklist, common errors with solutions, development workflow, environment variable reference, deployment notes |
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `README.md` | Rewritten for better onboarding — clearer project description, architecture diagram, quick-start guide, links to detailed docs (backend/README, frontend/README, REPRODUCIBILITY.md), tech stack summary |
+| `change_log.md` | Added this session's log entry |
+| `diary.md` | Added diary entry for this session |
+
+### Summary
+Created a complete documentation suite for smooth team reproducibility. Backend README details all 55+ API endpoints across 10 routers with descriptions. Frontend README covers the component architecture and styling system. REPRODUCIBILITY.md is a step-by-step guide for noob vibe-coders covering everything from Python/Node installation through live server verification, with prominent warnings about common pitfalls (MongoDB connection strings, virtual environments, --legacy-peer-deps, etc.). Main README rewritten as a clear entry point linking to all detailed docs.
+### Folder Created
+| Folder | Description |
+|------|-------------|
+| `.kiro\specs\ai-engine-enhancement | It contains the spec files to level up our project onto another stage of ei-engine working and functional across the application's features and chatbot. It also lays down the detailed requirements as per Guides/deep-research-report.md and specific instructions regarding coherent dynamic workflow for configuration of ai-engine to frontend and backend
+### DOCUMENTATIONS CREATED:
+README.md
+ — Full backend architecture doc with:
+
+Visual file tree showing the architecture
+Complete endpoint catalog (55+ endpoints across 10 routers with HTTP methods, paths, and descriptions)
+File-by-file descriptions of every service module
+Setup instructions with step-by-step commands
+Environment variable reference with the MongoDB URL encoding table
+Testing instructions
+Development guidelines (adding endpoints, adding services, common pitfalls)
+README.md
+ — Frontend architecture doc with:
+
+Component hierarchy and file tree
+Routing table with domain themes
+Context provider stack explanation
+Styling system (Tailwind + CSS variables + bdy-* utilities)
+Setup instructions (with --legacy-peer-deps warning)
+Development guidelines for adding pages/components
+Common issues table
+README.md — Rewritten as a clean entry point:
+
+Tech stack summary
+Project structure overview
+Quick-start commands
+Key features list
+Links to all detailed docs
+REPRODUCIBILITY.md — The "noob-friendly" complete guide:
+
+Prerequisites with download links and verification commands
+Step-by-step backend setup (venv creation/activation, pip install, .env creation)
+Step-by-step frontend setup (npm install with --legacy-peer-deps)
+"How to verify it works" section with 5 specific checks
+Full environment variable reference table
+25+ common errors with causes and fixes
+Development workflow (daily startup, making changes, running tests, git)
+Color-coded warnings (🔴 Critical / 🟡 Important / 🟢 Good to know)
+Architecture quick reference (request flow, database collections, port map)
+Deployment notes for later

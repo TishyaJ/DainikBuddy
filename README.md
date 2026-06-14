@@ -1,113 +1,120 @@
 # PocketBuddy
 
-PocketBuddy is your all-in-one AI wellness, finance, and productivity assistant. Designed to help you keep track of your daily habits, manage your expenses, split bills, track goals, and maintain a healthy routine. It provides an intuitive, gamified experience with personalized wellness insights and a fully functional AI-powered backend.
-
-## 🚀 Getting Started
-
-To collaborate effectively or run this project locally, you need to set up both the **Frontend (React)** and **Backend (FastAPI)**.
-
-### Prerequisites
-
-- [Node.js](https://nodejs.org/) (for the frontend)
-- [Python 3.10+](https://www.python.org/) (for the backend)
-- MongoDB Database (Local or MongoDB Atlas)
+AI-powered wellness, finance, and productivity companion for students. Track moods, manage expenses, set goals, chat with AI buddies, join study groups, and build healthy habits — all in one gamified mobile-first app.
 
 ---
 
-### 1. Backend Setup
+## Tech Stack
 
-The backend is built with Python, FastAPI, and Motor (Async MongoDB). 
-
-1. **Navigate to the backend directory:**
-   ```bash
-   cd backend
-   ```
-
-2. **Create a virtual environment:**
-   ```bash
-   python -m venv venv
-   ```
-
-3. **Activate the virtual environment:**
-   - **Windows:**
-     ```bash
-     venv\Scripts\activate
-     ```
-   - **Mac/Linux:**
-     ```bash
-     source venv/bin/activate
-     ```
-
-4. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-5. **Set up Environment Variables:**
-   Create a `.env` file in the `backend` directory containing your local or remote MongoDB URL, DB Name, and your LLM Keys.
-   ```env
-   MONGO_URL=mongodb://localhost:27017
-   DB_NAME=pocketbuddy
-   EMERGENT_LLM_KEY=your_key_here
-   ```
-
-6. **Run the server:**
-   ```bash
-   uvicorn server:app --reload
-   ```
-   *The backend should now be running at `http://localhost:8000`. You can view the API documentation at `http://localhost:8000/docs`.*
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | React 19, Tailwind CSS, Radix UI, Framer Motion, Recharts, Axios |
+| **Backend** | Python 3.10+, FastAPI, Motor (async MongoDB), PyJWT, bcrypt |
+| **Database** | MongoDB Atlas (cloud) or local MongoDB |
+| **AI** | OpenAI / Anthropic / Gemini / Groq (multi-provider) |
+| **PWA** | Workbox service worker, IndexedDB offline sync, Web Push |
 
 ---
 
-### 2. Frontend Setup
+## Project Structure
 
-The frontend is a React application utilizing Tailwind CSS and Radix UI components.
-
-1. **Navigate to the frontend directory:**
-   ```bash
-   cd frontend
-   ```
-
-2. **Install dependencies:**
-   Due to some peer dependency conflicts with newer React versions, we recommend installing with `--legacy-peer-deps`:
-   ```bash
-   npm install --legacy-peer-deps
-   ```
-   *(Alternatively, if you use Yarn, you can run `yarn install`)*
-
-3. **Start the development server:**
-   ```bash
-   npm start
-   ```
-   *The frontend should now be running at `http://localhost:3000`.*
+```
+PocketBuddy/
+├── backend/               ← FastAPI server (Python)
+│   ├── server.py          ← Main app + core endpoints
+│   ├── *_router.py        ← Feature routers (auth, social, analytics, etc.)
+│   ├── *_service.py       ← Business logic modules
+│   ├── tests/             ← 185+ pytest tests
+│   └── README.md          ← Detailed backend documentation
+│
+├── frontend/              ← React app
+│   ├── src/pages/         ← Page components
+│   ├── src/components/    ← Reusable UI components
+│   ├── src/context/       ← React context providers (auth, gamification, etc.)
+│   ├── src/lib/           ← Utilities (API client, offline sync, voice input)
+│   └── README.md          ← Detailed frontend documentation
+│
+├── REPRODUCIBILITY.md     ← ⭐ Complete setup guide for new team members
+├── change_log.md          ← Session-by-session development log
+├── diary.md               ← Implementation decisions and architecture reasoning
+└── design_guidelines.json ← UI/UX design system reference
+```
 
 ---
 
-## 🤝 Collaboration Guidelines
+## Quick Start
 
-To ensure smooth collaboration across the team, please adhere to the following workflow:
+> **New to the project?** Read [REPRODUCIBILITY.md](./REPRODUCIBILITY.md) for the full step-by-step guide with troubleshooting.
 
-### Branching Strategy
-- **`main`**: Production-ready code. Always stable.
-- **Feature Branches**: Branch off `main` for new features using the format `feature/<your-feature-name>` or `bugfix/<issue-name>`. 
-  - Example: `feature/auth-backend` or `feature/gamification`.
+### 1. Backend
 
-### Commits & Pull Requests
-- Keep your commits small and descriptive. Use conventional commit messages if possible (e.g., `feat: added wellness AI cards`).
-- Before pushing, make sure all your tests pass locally.
-- Create a Pull Request (PR) against `main`. Describe the changes made and link any relevant issue or task ID.
-- Request a review from at least one collaborator before merging.
+```bash
+cd backend
+python -m venv venv
+venv\Scripts\activate          # Windows
+pip install -r requirements.txt
+# Create .env with your MongoDB URL + API keys (see backend/.env.example)
+uvicorn server:app --reload --port 8000
+```
+
+### 2. Frontend
+
+```bash
+cd frontend
+npm install --legacy-peer-deps
+# Create .env with: REACT_APP_BACKEND_URL=http://localhost:8000
+npm start
+```
+
+App opens at http://localhost:3000. Backend API docs at http://localhost:8000/docs.
+
+---
+
+## Key Features
+
+- **4 AI Buddies** — Finance, Wellness, Discover, Helper (each with distinct personality + conversation memory)
+- **Cross-Domain Intelligence** — AI detects correlations between spending, sleep, stress, and habits
+- **Gamification** — XP, levels, streaks, achievements, daily challenges
+- **Study Groups** — Invite codes, shared goals with leaderboards, community challenges
+- **Smart Notifications** — Budget warnings, wellness nudges, streak celebrations (rate-limited)
+- **Analytics** — Trend charts, spending anomalies, monthly reports, recovery plans
+- **Life-Balance Radar** — 5-domain scoring (finance, wellness, academics, social, self-care)
+- **Voice Input** — Web Speech API for journal entries (3s pause auto-stop)
+- **Offline Support** — PWA with IndexedDB queue, sync on reconnect, conflict resolution
+- **Auto-Categorization** — Learns from user corrections to categorize future expenses
+
+---
+
+## Documentation
+
+| Document | Purpose |
+|----------|---------|
+| [REPRODUCIBILITY.md](./REPRODUCIBILITY.md) | **Start here** — Full setup guide for new team members |
+| [backend/README.md](./backend/README.md) | Backend architecture, all 55+ endpoints, service descriptions |
+| [frontend/README.md](./frontend/README.md) | Frontend architecture, components, styling system |
+| [change_log.md](./change_log.md) | What changed in each development session |
+| [diary.md](./diary.md) | Why decisions were made (architecture reasoning) |
+
+---
+
+## Collaboration
+
+### Branching
+- `main` — Production-ready, always stable
+- `feature/<name>` — New features (e.g., `feature/voice-input`)
+- `bugfix/<name>` — Bug fixes
+
+### Before Pushing
+1. Backend: `python -m pytest tests/ -v` (all 185+ tests must pass)
+2. Frontend: `npm run build` (must compile without errors)
+3. Write descriptive commit messages (e.g., `feat: add challenge completion with reflection`)
 
 ### Code Style
-- **Backend**: We use `black`, `isort`, `flake8`, and `mypy` for Python code formatting and linting. Run these tools prior to committing.
-- **Frontend**: Follow standard ESLint rules provided in the CRA setup. Use Prettier for formatting. Component structures should follow our design guidelines.
+- **Backend**: Black + isort formatting, type hints where practical
+- **Frontend**: ESLint (via craco), Tailwind class ordering, `bdy-*` for themed colors
 
-### Spec and Task Workflow
-Refer to `diary.md`, `design.md`, and `requirements.md` in the root (and any `test_result.md` or `.kiro` plans) before making architectural changes. The plan follows a dependency-driven wave approach:
-1. **Auth First**
-2. **Gamification & APIs**
-3. **AI Context & Conversation Memory**
-4. **Notifications & Analytics**
-5. **UI Integration & Polish**
+---
 
-Happy Coding! 🚀
+## License
+
+Private project — PocketBuddy team only.

@@ -865,3 +865,31 @@ Rather than a multi-step flow (join → track daily → complete), simplified to
 - **55 API endpoints tested against live servers**
 - **UI is themed, accessible, animated, and coherent across all domains**
 - **No blocking issues remaining**
+
+
+---
+
+## June 14, 2026 — Documentation & Reproducibility Suite
+
+### What happened
+After completing all 18 implementation tasks, the user needed onboarding documentation for a teammate who is a "noob vibe-coder." Created a comprehensive documentation suite: backend README (architecture + endpoints), frontend README (components + styling), main README overhaul, and a detailed REPRODUCIBILITY.md guide.
+
+### Why this matters
+The project grew from a simple prototype to a full-stack app with 55+ API endpoints, 10 backend routers, 25+ frontend components, 5 context providers, PWA support, offline sync, and multiple AI integrations. Without proper documentation, a new teammate would spend hours just figuring out how to run it — let alone understand the architecture.
+
+### Documentation Strategy
+1. **Backend README** — focuses on architecture (routers, services, middleware), complete endpoint catalog with HTTP methods and descriptions, file-by-file explanations, and setup instructions with common gotchas
+2. **Frontend README** — focuses on the component hierarchy, page structure, context providers, styling system (Tailwind + CSS variables + domain theming), and development guidelines
+3. **REPRODUCIBILITY.md** — the "just make it work" guide. Step-by-step from zero to running servers. Includes verification commands to confirm each step worked. Heavy on warnings and troubleshooting because the teammate is new to this
+4. **Main README** — rewritten as a quick-start entry point that links to the detailed docs. Not overwhelming, just enough to understand what the project is and where to go for more
+
+### Key decisions
+- Put the most critical warnings (MongoDB URL encoding, --legacy-peer-deps, venv activation) in multiple places — repetition is fine for documentation meant for beginners
+- Included actual example commands for Windows (the team's OS) rather than just Unix-style examples
+- Listed ALL environment variables with descriptions, not just the ones currently in .env.example
+- Added a "How to verify it's working" section with curl commands — because "it runs without errors" doesn't mean "it works correctly"
+
+### Current State
+- All implementation tasks complete (1-18)
+- Full documentation suite created
+- Project is now reproducible by a new team member following the guides
