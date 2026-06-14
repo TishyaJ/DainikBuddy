@@ -138,7 +138,7 @@ export default function Profile() {
               {editing ? (
                 <input
                   data-testid="profile-income-input"
-                  type="number" value={income} onChange={(e) => setIncome(e.target.value)}
+                  type="number" min="0" step="0.01" value={income} onChange={(e) => setIncome(e.target.value)}
                   className="bg-slate-50 rounded-lg px-2.5 py-1 text-sm w-28 border border-slate-200 outline-none focus:border-[color:var(--bdy)]"
                 />
               ) : (
@@ -383,8 +383,8 @@ function HistoryCard() {
               data-testid={`history-filter-${f.key}`}
               aria-label={`Filter history to ${f.label}`}
               className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-all ${filter === f.key
-                  ? "bdy-bg text-white"
-                  : "bg-slate-100 text-slate-600"
+                ? "bdy-bg text-white"
+                : "bg-slate-100 text-slate-600"
                 }`}
             >
               {f.label}
@@ -441,8 +441,8 @@ function HistoryCard() {
                           <p className="text-xs font-semibold text-slate-800 truncate">{item.title}</p>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${item.type === "task"
-                                ? "bg-blue-50 text-blue-600"
-                                : "bg-emerald-50 text-emerald-600"
+                              ? "bg-blue-50 text-blue-600"
+                              : "bg-emerald-50 text-emerald-600"
                               }`}>
                               {item.type === "task" ? "Task" : "Goal"}
                             </span>

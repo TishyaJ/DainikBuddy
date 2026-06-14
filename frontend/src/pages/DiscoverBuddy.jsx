@@ -398,6 +398,7 @@ const Goals = () => {
             <input
               data-testid="new-goal-target"
               type="number"
+              min="0"
               value={newTarget}
               onChange={(e) => setNewTarget(e.target.value)}
               placeholder="Target"

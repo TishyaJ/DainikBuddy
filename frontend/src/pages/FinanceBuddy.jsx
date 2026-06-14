@@ -35,15 +35,15 @@ const Dashboard = () => {
         <div className="text-center">
           <div className="text-xs text-slate-500 font-semibold">MONTHLY BUDGET</div>
         </div>
-        <Ring pct={b.percent_used} value={`₹${b.total_spent.toLocaleString()}`} label={`of ₹${b.total_allocated.toLocaleString()}`} />
+        <Ring pct={b.percent_used} value={`₹${b.total_spent.toLocaleString()}`} label={`of ₹${(b.monthly_income || b.total_allocated).toLocaleString()}`} />
         <div className="grid grid-cols-3 gap-2 mt-3">
           <div className="p-2 rounded-xl bg-slate-50 text-center">
             <div className="text-[10px] text-slate-500">Spent</div>
-            <div className="font-bold text-sm">₹{b.total_spent}</div>
+            <div className="font-bold text-sm">₹{b.total_spent.toLocaleString()}</div>
           </div>
           <div className="p-2 rounded-xl bg-slate-50 text-center">
             <div className="text-[10px] text-slate-500">Left</div>
-            <div className="font-bold text-sm text-emerald-600">₹{b.remaining}</div>
+            <div className={`font-bold text-sm ${b.remaining >= 0 ? "text-emerald-600" : "text-rose-600"}`}>₹{Math.abs(b.remaining).toLocaleString()}{b.remaining < 0 ? " over" : ""}</div>
           </div>
           <div className="p-2 rounded-xl bg-slate-50 text-center">
             <div className="text-[10px] text-slate-500">Used</div>
@@ -55,12 +55,12 @@ const Dashboard = () => {
         <h3 className="font-display font-bold text-base">Categories</h3>
         <div className="space-y-2.5 mt-3" data-testid="budget-categories">
           {b.categories.map((c) => {
-            const pct = Math.round((c.spent / c.allocated) * 100);
+            const pct = c.allocated > 0 ? Math.round((c.spent / c.allocated) * 100) : (c.spent > 0 ? 100 : 0);
             return (
               <div key={c.id}>
                 <div className="flex justify-between text-xs mb-1">
                   <span className="font-semibold text-slate-700">{c.name}</span>
-                  <span className="text-slate-500">₹{c.spent} / ₹{c.allocated}</span>
+                  <span className="text-slate-500">₹{c.spent} / {c.allocated > 0 ? `₹${c.allocated}` : "No budget"}</span>
                 </div>
                 <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
                   <div className={`h-full rounded-full ${pct > 90 ? "bg-rose-500" : pct > 70 ? "bg-amber-500" : "bdy-bg"}`}
@@ -268,7 +268,7 @@ const Subs = () => {
             <input data-testid="sub-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="Subscription name" aria-label="Enter subscription name" className="w-full bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
             <div className="flex gap-2">
-              <input data-testid="sub-amount" type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })}
+              <input data-testid="sub-amount" type="number" min="0" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })}
                 placeholder="₹ Amount" aria-label="Enter subscription amount" className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
               <input data-testid="sub-renews" type="date" value={form.renews_on} onChange={(e) => setForm({ ...form, renews_on: e.target.value })}
                 aria-label="Select renewal date" className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
@@ -300,11 +300,11 @@ const FoodTravel = () => {
   const foodCat = budget?.categories.find((c) => c.name.toLowerCase() === "food");
   const travelCat = budget?.categories.find((c) => c.name.toLowerCase() === "transport");
   const foodSpent = foodCat?.spent || 0;
-  const foodAlloc = foodCat?.allocated || 1;
+  const foodAlloc = foodCat?.allocated || 0;
   const travelSpent = travelCat?.spent || 0;
-  const travelAlloc = travelCat?.allocated || 1;
-  const foodPct = Math.round((foodSpent / foodAlloc) * 100);
-  const travelPct = Math.round((travelSpent / travelAlloc) * 100);
+  const travelAlloc = travelCat?.allocated || 0;
+  const foodPct = foodAlloc > 0 ? Math.round((foodSpent / foodAlloc) * 100) : (foodSpent > 0 ? 100 : 0);
+  const travelPct = travelAlloc > 0 ? Math.round((travelSpent / travelAlloc) * 100) : (travelSpent > 0 ? 100 : 0);
 
   return (
     <div className="mx-5 mt-4 space-y-3">
@@ -317,12 +317,12 @@ const FoodTravel = () => {
             <div className="p-3 rounded-2xl bdy-soft border border-[color:var(--bdy)]/15">
               <div className="text-[10px] font-semibold uppercase text-slate-600">Food</div>
               <div className="font-display font-bold text-xl mt-1">₹{foodSpent.toLocaleString()}</div>
-              <div className="text-[11px] text-slate-500">{foodPct}% of ₹{foodAlloc.toLocaleString()}</div>
+              <div className="text-[11px] text-slate-500">{foodAlloc > 0 ? `${foodPct}% of ₹${foodAlloc.toLocaleString()}` : "No budget set"}</div>
             </div>
             <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-100">
               <div className="text-[10px] font-semibold uppercase text-emerald-700">Travel</div>
               <div className="font-display font-bold text-xl mt-1">₹{travelSpent.toLocaleString()}</div>
-              <div className="text-[11px] text-emerald-600">{travelPct}% of ₹{travelAlloc.toLocaleString()}</div>
+              <div className="text-[11px] text-emerald-600">{travelAlloc > 0 ? `${travelPct}% of ₹${travelAlloc.toLocaleString()}` : "No budget set"}</div>
             </div>
           </div>
         )}
@@ -464,9 +464,9 @@ const Savings = () => {
                 placeholder="Goal name" aria-label="Enter savings goal name" className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
             </div>
             <div className="flex gap-2">
-              <input data-testid="savings-target" type="number" value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })}
+              <input data-testid="savings-target" type="number" min="0" step="0.01" value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })}
                 placeholder="₹ Target amount" aria-label="Enter target savings amount" className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
-              <input data-testid="savings-saved" type="number" value={form.saved} onChange={(e) => setForm({ ...form, saved: e.target.value })}
+              <input data-testid="savings-saved" type="number" min="0" step="0.01" value={form.saved} onChange={(e) => setForm({ ...form, saved: e.target.value })}
                 placeholder="₹ Already saved" aria-label="Enter amount already saved" className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
             </div>
             <div className="flex gap-2">
@@ -568,12 +568,12 @@ const Splits = () => {
             <input data-testid="split-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
               placeholder="What was it for?" aria-label="Enter split bill description" className="w-full bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
             <div className="flex gap-2">
-              <input data-testid="split-total" type="number" value={form.total} onChange={(e) => setForm({ ...form, total: e.target.value })}
+              <input data-testid="split-total" type="number" min="0" step="0.01" value={form.total} onChange={(e) => setForm({ ...form, total: e.target.value })}
                 placeholder="₹ Total bill" aria-label="Enter total bill amount" className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
               <input data-testid="split-person" value={form.with_person} onChange={(e) => setForm({ ...form, with_person: e.target.value })}
                 placeholder="Split with" aria-label="Enter person to split with" className="flex-1 bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
             </div>
-            <input data-testid="split-you-paid" type="number" value={form.you_paid} onChange={(e) => setForm({ ...form, you_paid: e.target.value })}
+            <input data-testid="split-you-paid" type="number" min="0" step="0.01" value={form.you_paid} onChange={(e) => setForm({ ...form, you_paid: e.target.value })}
               placeholder="₹ You paid (0 if they paid)" aria-label="Enter amount you paid" className="w-full bg-white rounded-xl px-3 py-2 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
             <div className="flex gap-2">
               <button onClick={addSplit} disabled={busy || !form.title.trim() || !form.total || !form.with_person.trim()} data-testid="save-split-btn"
@@ -666,7 +666,7 @@ const BudgetEditor = () => {
             <span className="absolute left-3 top-2.5 text-slate-500 text-sm font-semibold">₹</span>
             <input
               data-testid="income-input"
-              type="number" value={income} onChange={(e) => setIncome(e.target.value)}
+              type="number" min="0" step="0.01" value={income} onChange={(e) => setIncome(e.target.value)}
               placeholder="Monthly income"
               className="w-full bg-white rounded-xl pl-7 pr-3 py-2.5 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]"
             />
@@ -721,6 +721,8 @@ const BudgetEditor = () => {
                     <input
                       data-testid="edit-cat-amount"
                       type="number"
+                      min="0"
+                      step="0.01"
                       value={draft.allocated}
                       onChange={(e) => setDraft({ ...draft, allocated: e.target.value })}
                       className="w-24 bg-white rounded-lg px-2.5 py-1.5 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]"
@@ -797,6 +799,8 @@ const BudgetEditor = () => {
           <input
             data-testid="new-cat-amount"
             type="number"
+            min="0"
+            step="0.01"
             value={newCat.allocated}
             onChange={(e) => setNewCat({ ...newCat, allocated: e.target.value })}
             placeholder="₹"

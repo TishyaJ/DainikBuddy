@@ -251,6 +251,8 @@ export const Tasks = () => {
             value={newMin}
             onChange={(e) => setNewMin(e.target.value)}
             type="number"
+            min="0"
+            step="1"
             placeholder="min"
             className="w-16 bg-slate-50 rounded-xl px-2 py-2.5 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]"
           />

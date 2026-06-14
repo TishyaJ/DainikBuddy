@@ -103,7 +103,7 @@ const Expense = () => {
     <Card className="mx-5 mt-4">
       <h3 className="font-display font-bold text-lg">Log an Expense</h3>
       <div className="grid grid-cols-2 gap-2 mt-3">
-        <input data-testid="exp-amount" type="number" placeholder="₹ Amount" value={amount}
+        <input data-testid="exp-amount" type="number" min="0" step="0.01" placeholder="₹ Amount" value={amount}
           onChange={(e) => setAmount(e.target.value)}
           aria-label="Enter expense amount"
           className="bg-slate-50 rounded-xl px-3 py-2.5 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />

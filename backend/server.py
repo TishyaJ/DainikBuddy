@@ -371,6 +371,8 @@ async def get_moods(limit: int = 30, user_id: str = Depends(get_current_user)):
 # ============ EXPENSES ============
 @api_router.post("/expenses")
 async def create_expense(e: Expense, user_id: str = Depends(get_current_user)):
+    if e.amount <= 0:
+        raise HTTPException(400, "Amount must be greater than 0")
     e.user_id = user_id
     if not e.category or e.category == "auto":
         category, is_misc = await categorization_service.categorize_expense(
@@ -380,11 +382,15 @@ async def create_expense(e: Expense, user_id: str = Depends(get_current_user)):
     else:
         is_misc = False
     await db.expenses.insert_one(e.model_dump())
-    # update budget spent
-    await db.budget_categories.update_one(
+    # update budget spent — upsert so expenses always track even without a pre-created category
+    result = await db.budget_categories.update_one(
         {"user_id": user_id, "name": {"$regex": f"^{e.category}$", "$options": "i"}},
         {"$inc": {"spent": e.amount}},
     )
+    # If no matching budget category exists, create one with allocated=0 so it appears in dashboard
+    if result.matched_count == 0:
+        auto_cat = BudgetCategory(user_id=user_id, name=e.category.capitalize(), allocated=0, spent=e.amount)
+        await db.budget_categories.insert_one(auto_cat.model_dump())
     # Award gamification XP for expense log
     await gamification_service.award_xp(user_id, "expense_log")
     result = e.model_dump()
@@ -566,11 +572,16 @@ async def get_budget(user_id: str = Depends(get_current_user)):
     cats = await list_docs("budget_categories", user_id=user_id)
     total_alloc = sum(c["allocated"] for c in cats)
     total_spent = sum(c["spent"] for c in cats)
+    # Get monthly income for "money left" calculation
+    profile = await db.user_profiles.find_one({"user_id": user_id}, {"_id": 0})
+    monthly_income = profile.get("monthly_income", 0) if profile else 0
     return {
         "categories": cats,
         "total_allocated": total_alloc,
         "total_spent": total_spent,
-        "remaining": total_alloc - total_spent,
+        "remaining": monthly_income - total_spent if monthly_income > 0 else max(total_alloc - total_spent, 0),
+        "budget_remaining": total_alloc - total_spent,
+        "monthly_income": monthly_income,
         "percent_used": round(total_spent / total_alloc * 100, 1) if total_alloc else 0,
     }
 
@@ -588,6 +599,8 @@ async def create_budget_category(payload: Dict[str, Any], user_id: str = Depends
     if not name:
         raise HTTPException(400, "Name required")
     allocated = float(payload.get("allocated") or 0)
+    if allocated < 0:
+        raise HTTPException(400, "Allocated amount cannot be negative")
     cat = BudgetCategory(user_id=user_id, name=name, allocated=allocated, spent=0)
     await db.budget_categories.insert_one(cat.model_dump())
     return cat
@@ -640,6 +653,10 @@ async def create_savings_goal(payload: Dict[str, Any], user_id: str = Depends(ge
         raise HTTPException(400, "Name required")
     target = float(payload.get("target") or 0)
     saved = float(payload.get("saved") or 0)
+    if target < 0:
+        raise HTTPException(400, "Target amount cannot be negative")
+    if saved < 0:
+        raise HTTPException(400, "Saved amount cannot be negative")
     emoji = (payload.get("emoji") or "🎯").strip()
     goal = SavingsGoal(user_id=user_id, name=name, target=target, saved=saved, emoji=emoji)
     await db.savings_goals.insert_one(goal.model_dump())
@@ -714,6 +731,8 @@ async def sleep_weekly(user_id: str = Depends(get_current_user)):
 
 @api_router.post("/sleep")
 async def add_sleep(s: SleepEntry, user_id: str = Depends(get_current_user)):
+    if s.hours < 0 or s.hours > 24:
+        raise HTTPException(400, "Hours must be between 0 and 24")
     s.user_id = user_id
     await db.sleep_entries.insert_one(s.model_dump())
     return s

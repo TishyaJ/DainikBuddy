@@ -183,7 +183,7 @@ export const ExerciseTracker = () => {
           <div className="flex gap-2">
             <input data-testid="new-exercise-name" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Exercise (e.g. Squats)"
               className="flex-1 bg-slate-50 rounded-xl px-3 py-2.5 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
-            <input data-testid="new-exercise-min" type="number" value={newMin} onChange={(e) => setNewMin(e.target.value)} placeholder="min"
+            <input data-testid="new-exercise-min" type="number" min="0" step="1" value={newMin} onChange={(e) => setNewMin(e.target.value)} placeholder="min"
               className="w-16 bg-slate-50 rounded-xl px-2 py-2.5 text-sm border border-slate-200 outline-none focus:border-[color:var(--bdy)]" />
           </div>
           <div className="flex gap-1.5">
