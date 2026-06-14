@@ -21,6 +21,7 @@ import gamification_service
 import categorization_service
 from discover_travel_service import TravelService
 from discover_food_service import FoodRecommendationService
+from insights_service import WeeklyReviewService, DailyInsightsService, CommandCenterService
 
 ROOT_DIR = Path(__file__).parent
 
@@ -368,6 +369,8 @@ async def create_mood(entry: MoodEntry, user_id: str = Depends(get_current_user)
     await db.mood_entries.insert_one(entry.model_dump())
     # Award gamification XP for mood check-in
     await gamification_service.award_xp(user_id, "mood_checkin")
+    # Invalidate weekly insights cache
+    asyncio.create_task(WeeklyReviewService(db).invalidate_cache(user_id))
     return entry
 
 
@@ -401,6 +404,8 @@ async def create_expense(e: Expense, user_id: str = Depends(get_current_user)):
         await db.budget_categories.insert_one(auto_cat.model_dump())
     # Award gamification XP for expense log
     await gamification_service.award_xp(user_id, "expense_log")
+    # Invalidate weekly insights cache
+    asyncio.create_task(WeeklyReviewService(db).invalidate_cache(user_id))
     result = e.model_dump()
     result["needs_confirmation"] = is_misc
     return result
@@ -489,14 +494,26 @@ async def get_journals(limit: int = 30, user_id: str = Depends(get_current_user)
 @api_router.get("/journal/weekly")
 async def journal_weekly(user_id: str = Depends(get_current_user)):
     entries = await db.journal_entries.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).to_list(50)
-    # bucket last 7 days
+    # bucket last 7 days with sentiment proportions
     today = datetime.now(timezone.utc).date()
     out = []
     for i in range(7):
         d = today - timedelta(days=6 - i)
         day_entries = [e for e in entries if datetime.fromisoformat(e["created_at"]).date() == d]
-        avg = sum(e.get("sentiment_score") or 0 for e in day_entries) / max(len(day_entries), 1) if day_entries else 0
-        out.append({"day": d.strftime("%a"), "score": round(avg, 2), "count": len(day_entries)})
+        total = len(day_entries)
+        if total > 0:
+            pos = sum(1 for e in day_entries if e.get("sentiment") == "positive")
+            neg = sum(1 for e in day_entries if e.get("sentiment") == "negative")
+            neu = total - pos - neg
+            out.append({
+                "day": d.strftime("%a"),
+                "positive": round(pos / total, 2),
+                "negative": round(neg / total, 2),
+                "neutral": round(neu / total, 2),
+                "count": total,
+            })
+        else:
+            out.append({"day": d.strftime("%a"), "positive": 0, "negative": 0, "neutral": 0, "count": 0})
     return out
 
 
@@ -1594,6 +1611,8 @@ async def create_task(payload: Dict[str, Any], user_id: str = Depends(get_curren
              target_minutes=int(payload.get("target_minutes") or 60),
              progress=int(payload.get("progress") or 0))
     await db.tasks.insert_one(t.model_dump())
+    # Invalidate weekly insights cache
+    asyncio.create_task(WeeklyReviewService(db).invalidate_cache(user_id))
     return t
 
 
@@ -1614,6 +1633,8 @@ async def update_task(task_id: str, payload: Dict[str, Any], user_id: str = Depe
             if not payload.get("completed_at"):
                 payload["completed_at"] = now_iso()
     await db.tasks.update_one({"id": task_id, "user_id": user_id}, {"$set": payload})
+    # Invalidate weekly insights cache
+    asyncio.create_task(WeeklyReviewService(db).invalidate_cache(user_id))
     return await db.tasks.find_one({"id": task_id}, {"_id": 0})
 
 
@@ -2177,58 +2198,32 @@ async def _generate_daily_insights(user_id: str) -> List[Dict[str, Any]]:
 
 @api_router.get("/insights/daily")
 async def daily_insights(user_id: str = Depends(get_current_user)):
-    """
-    Return exactly 3 daily insight cards (financial tip, wellness suggestion, productivity recommendation).
-    Regenerates on first access after midnight in user's local timezone.
-    Requirements: 10.2, 10.6
-    """
+    """Return AI-powered daily insight cards (finance, wellness, productivity)."""
     try:
-        # Get user's local time for midnight regeneration logic
-        user_now = await _get_user_local_now(user_id)
-        today_str = user_now.strftime("%Y-%m-%d")
-
-        # Check if we have cached insights for today
-        cached = await db.daily_insights.find_one(
-            {"user_id": user_id, "date": today_str}, {"_id": 0}
-        )
-
-        if cached and cached.get("insights"):
-            return {
-                "insights": cached["insights"],
-                "generated_at": cached.get("generated_at", ""),
-                "date": today_str,
-            }
-
-        # Generate fresh insights
-        insights = await _generate_daily_insights(user_id)
-
-        # Store in daily_insights collection
-        await db.daily_insights.update_one(
-            {"user_id": user_id, "date": today_str},
-            {"$set": {
-                "user_id": user_id,
-                "date": today_str,
-                "insights": insights,
-                "generated_at": datetime.now(timezone.utc).isoformat(),
-            }},
-            upsert=True,
-        )
-
-        return {
-            "insights": insights,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "date": today_str,
-        }
-
-    except Exception as e:
-        logger.error(f"Error generating daily insights for {user_id}: {e}")
-        # Fallback to basic insights on error — still exactly 3
+        service = DailyInsightsService(db)
+        result = await asyncio.wait_for(service.get_daily_insights(user_id), timeout=5.0)
+        return result
+    except asyncio.TimeoutError:
+        logger.warning(f"Daily insights timed out for user {user_id}")
         return {
             "insights": [
                 {"domain": "finance", "title": "Track your spending", "detail": "Log expenses to get personalized tips.", "icon": "wallet", "data_reference": "N/A"},
                 {"domain": "wellness", "title": "Check in today", "detail": "Log your mood for wellness insights.", "icon": "heart", "data_reference": "N/A"},
                 {"domain": "productivity", "title": "Stay on track", "detail": "Review your goals for the week.", "icon": "target", "data_reference": "N/A"},
             ],
+            "data_sufficiency": "insufficient",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        }
+    except Exception as e:
+        logger.error(f"Daily insights error for user {user_id}: {e}")
+        return {
+            "insights": [
+                {"domain": "finance", "title": "Track your spending", "detail": "Log expenses to get personalized tips.", "icon": "wallet", "data_reference": "N/A"},
+                {"domain": "wellness", "title": "Check in today", "detail": "Log your mood for wellness insights.", "icon": "heart", "data_reference": "N/A"},
+                {"domain": "productivity", "title": "Stay on track", "detail": "Review your goals for the week.", "icon": "target", "data_reference": "N/A"},
+            ],
+            "data_sufficiency": "insufficient",
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         }
@@ -2387,20 +2382,56 @@ async def complete_actions(user_id: str = Depends(get_current_user)):
 
 @api_router.get("/insights/weekly")
 async def weekly_insights(user_id: str = Depends(get_current_user)):
-    return {
-        "scorecard": [
-            {"domain": "Finance", "score": 78, "trend": "+4"},
-            {"domain": "Wellness", "score": 71, "trend": "-3"},
-            {"domain": "Productivity", "score": 66, "trend": "+8"},
-            {"domain": "Discover", "score": 82, "trend": "+1"},
-        ],
-        "highlights": [
-            "Saved ₹420 by cooking 3 meals at home",
-            "Slept 7+ hours on 4 nights",
-            "Completed 18 of 25 Pomodoro sessions",
-        ],
-        "next_week_focus": "Protect bedtime: lights out by 11:30pm on weekdays.",
-    }
+    """Return AI-powered weekly review with real scores, trends, highlights, and focus."""
+    try:
+        service = WeeklyReviewService(db)
+        result = await asyncio.wait_for(service.get_weekly_review(user_id), timeout=8.0)
+        return result
+    except asyncio.TimeoutError:
+        logger.warning(f"Weekly insights timed out for user {user_id}")
+        return {
+            "scorecard": [],
+            "highlights": ["Unable to generate insights right now."],
+            "next_week_focus": "Try again later.",
+            "data_sufficiency": "insufficient",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Weekly insights error for user {user_id}: {e}")
+        return {
+            "scorecard": [],
+            "highlights": ["Unable to generate insights right now."],
+            "next_week_focus": "Try again later.",
+            "data_sufficiency": "insufficient",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+
+@api_router.get("/insights/briefing")
+async def daily_briefing(user_id: str = Depends(get_current_user)):
+    """Return AI-powered proactive daily briefing from Helper Buddy Command Center."""
+    try:
+        service = CommandCenterService(db)
+        result = await asyncio.wait_for(service.get_briefing(user_id), timeout=6.0)
+        return result
+    except asyncio.TimeoutError:
+        logger.warning(f"Daily briefing timed out for user {user_id}")
+        return {
+            "summary": "Unable to generate briefing right now.",
+            "actions": [],
+            "nudge": None,
+            "data_sufficiency": "insufficient",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Daily briefing error for user {user_id}: {e}")
+        return {
+            "summary": "Unable to generate briefing right now.",
+            "actions": [],
+            "nudge": None,
+            "data_sufficiency": "insufficient",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
 
 
 # ============ CHATBOT (SSE streaming) ============
