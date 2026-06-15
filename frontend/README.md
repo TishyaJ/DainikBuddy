@@ -12,71 +12,65 @@ src/
 ├── index.js               ← Entry point, service worker registration
 ├── index.css              ← Tailwind directives, CSS variables, domain themes
 ├── App.css                ← Additional global styles
+├── serviceWorkerRegistration.js ← SW registration/unregistration logic
 │
-├── pages/                 ← Full-screen page components (routed)
-│   ├── DailyHub.jsx       ← Home page: mood/expense/journal/goals/tasks tabs
-│   ├── FinanceBuddy.jsx   ← Finance management: budget, transactions, splits, savings
-│   ├── WellnessBuddy.jsx  ← Wellness: PHQ-2, sleep, exercises, bedtime goals
-│   ├── DiscoverBuddy.jsx  ← Discovery: goals, recommendations, exercises
-│   ├── ChatCenter.jsx     ← AI chat: 4 buddies (finance/wellness/discover/helper)
+├── pages/                 ← Full-screen page components (15 files)
+│   ├── DailyHub.jsx       ← Home: mood/expense/journal/goals/tasks + AI summary
+│   ├── FinanceBuddy.jsx   ← Finance: budget, transactions, splits, savings
+│   ├── WellnessBuddy.jsx  ← Wellness: PHQ-2, sleep, AI cards, habits, bedtime
+│   ├── DiscoverBuddy.jsx  ← Discovery: AI food, travel routes, campus
+│   ├── ChatCenter.jsx     ← AI chat hub: 4 buddies + command center
 │   ├── BuddyChat.jsx      ← Individual chat conversation view
-│   ├── Profile.jsx        ← User profile: gamification, history, patterns
-│   ├── StudyGroups.jsx    ← Social: my groups + community challenges tabs
+│   ├── Profile.jsx        ← Profile: gamification, history, patterns, settings
+│   ├── StudyGroups.jsx    ← Social: my groups + community challenges
 │   ├── TrendsView.jsx     ← Analytics: charts, anomalies, monthly report
 │   ├── NotificationCenter.jsx    ← Notification list with dismiss
 │   ├── NotificationPreferences.jsx ← Toggle notification categories
-│   ├── Onboarding.jsx     ← First-time user setup flow
+│   ├── Onboarding.jsx     ← First-time user setup (4-step flow)
 │   ├── LoginPage.jsx      ← Email/password login
 │   ├── RegisterPage.jsx   ← Registration with password requirements
 │   └── ForgotPasswordPage.jsx ← Password reset request
 │
-├── components/            ← Reusable UI components
+├── components/            ← Reusable UI components (26 files + ui/)
 │   ├── PhoneFrame.jsx     ← 430px max-width mobile frame container
 │   ├── Header.jsx         ← Top bar: greeting, XP badge, notification bell
-│   ├── BottomNav.jsx      ← 5-tab navigation (Home/Finance/Social/Discover/Chat)
-│   ├── SubTabs.jsx        ← In-page tab switcher (role=tablist, accessible)
-│   │
-│   ├── AchievementBadge.jsx     ← Animated badge with spring slide-in
-│   ├── StreakCounter.jsx        ← Streak display with milestone bounce
+│   ├── BottomNav.jsx      ← 5-tab nav (Home/Finance/Social/Discover/Chat)
+│   ├── SubTabs.jsx        ← In-page tab switcher (accessible tablist)
+│   ├── AchievementBadge.jsx     ← Animated badge (spring slide-in)
+│   ├── StreakCounter.jsx        ← Streak display (milestone bounce)
 │   ├── XPProgressBar.jsx       ← Level progress bar
-│   ├── LevelUpOverlay.jsx      ← Full-screen level-up celebration (particles)
-│   │
+│   ├── LevelUpOverlay.jsx      ← Level-up celebration (particles)
 │   ├── NotificationBell.jsx    ← Bell icon with unread badge count
 │   ├── AnomalyFlag.jsx         ← Spending anomaly alert banner
 │   ├── MonthlyReport.jsx       ← Financial health report card
-│   │
 │   ├── StudyGroupCard.jsx      ← Group card with member avatars
-│   ├── GroupDetail.jsx         ← Full group view (members, goals, activity)
+│   ├── GroupDetail.jsx         ← Full group view (members, goals)
 │   ├── InviteCodeInput.jsx     ← 6-char code input with auto-focus
 │   ├── SharedGoalLeaderboard.jsx ← Sorted goal progress with trophy
 │   ├── CommunityChallenges.jsx  ← Challenge list/create/join/complete
-│   │
 │   ├── VoiceInputButton.jsx    ← Mic button with pulsing animation
 │   ├── OfflineIndicator.jsx    ← "You're offline" amber banner
 │   ├── SyncStatus.jsx          ← Floating sync progress pill
-│   ├── ConflictResolution.jsx  ← Conflict resolution modal (local vs server)
-│   │
+│   ├── ConflictResolution.jsx  ← Conflict resolution modal
 │   ├── Tasks.jsx               ← Task list + detail with archive
 │   ├── Exercise.jsx            ← Exercise tracking components
-│   │
 │   ├── Skeleton.jsx            ← Loading skeleton components
 │   ├── ErrorCard.jsx           ← Error display with retry button
 │   ├── EmptyState.jsx          ← Empty state with icon + CTA
-│   ├── PageTransition.jsx      ← Framer-motion page fade/slide wrapper
-│   │
-│   └── ui/                     ← shadcn/ui base components (Button, Card, Input, etc.)
+│   ├── PageTransition.jsx      ← Framer-motion page fade/slide
+│   └── ui/                     ← shadcn/ui base (Button, Card, Input, etc.)
 │
-├── context/               ← React context providers
-│   ├── AuthContext.jsx    ← JWT auth state, login/register/logout/refresh functions
-│   ├── DomainContext.jsx  ← Current domain (finance/wellness/social/etc), theme switching
+├── context/               ← React context providers (5 files)
+│   ├── AuthContext.jsx    ← JWT auth state, login/register/logout/refresh
+│   ├── DomainContext.jsx  ← Current domain, theme switching
 │   ├── GamificationContext.jsx ← XP, level, streak, achievements polling
-│   ├── NotificationContext.jsx ← Notifications list, 60s polling, push subscription
-│   └── OfflineContext.jsx     ← Online/offline state, sync triggers, conflict tracking
+│   ├── NotificationContext.jsx ← Notifications, 60s polling, push sub
+│   └── OfflineContext.jsx     ← Online/offline state, sync, conflicts
 │
-├── lib/                   ← Utility modules
-│   ├── api.js             ← Axios instance with auth interceptors (auto-refresh on 401)
-│   ├── offlineSync.js     ← IndexedDB offline queue (500-entry cap, sync, conflicts)
-│   ├── voiceInput.js      ← Web Speech API wrapper (3s pause, 10s silence timeout)
+├── lib/                   ← Utility modules (4 files)
+│   ├── api.js             ← Axios instance + auth interceptors (auto-refresh)
+│   ├── offlineSync.js     ← IndexedDB offline queue (500-entry cap, sync)
+│   ├── voiceInput.js      ← Web Speech API wrapper (3s pause, 10s timeout)
 │   └── utils.js           ← cn() class merger utility
 │
 ├── hooks/                 ← Custom React hooks
@@ -144,11 +138,13 @@ The project uses Tailwind CSS with custom CSS variables for domain-based theming
   --bdy: #10b981;      /* emerald */
   --bdy-soft: #d1fae5;
   --bdy-2: #059669;
+  --bdy-dark: #047857;
 }
 [data-domain="wellness"] {
   --bdy: #8b5cf6;      /* violet */
   --bdy-soft: #ede9fe;
   --bdy-2: #7c3aed;
+  --bdy-dark: #6d28d9;
 }
 /* ... etc for hub, social, discover, chat */
 ```
@@ -162,6 +158,13 @@ The project uses Tailwind CSS with custom CSS variables for domain-based theming
 - **NEVER** use hardcoded Tailwind colors like `bg-purple-500` for interactive/themed elements
 - Always use `bdy-*` utilities so colors respond to domain changes
 - Static/neutral elements (borders, backgrounds) can use Tailwind gray scale
+- Domain transitions animate smoothly (200ms ease-out on color/bg-color)
+
+### Accessibility
+- All interactive elements have `aria-label`
+- Global `focus-visible` ring styles using `var(--bdy)` color
+- SubTabs use proper `role="tablist"` / `role="tab"` / `aria-selected`
+- `--bdy-dark` variants provide WCAG AA contrast for text on white backgrounds
 
 ---
 
@@ -191,15 +194,7 @@ The app will open at http://localhost:3000.
 
 ### ⚠️ CRITICAL: --legacy-peer-deps
 
-You MUST use `--legacy-peer-deps` when installing. The project uses React 19 which has peer dependency conflicts with some packages (react-day-picker, some Radix UI packages). Without this flag, npm will refuse to install.
-
-```bash
-# ✅ Correct
-npm install --legacy-peer-deps
-
-# ❌ Will fail
-npm install
-```
+You MUST use `--legacy-peer-deps` when installing. The project uses React 19 which has peer dependency conflicts with some packages. Without this flag, npm will refuse to install.
 
 ### Build for Production
 
@@ -288,8 +283,9 @@ function MyComponent() {
 
 - **Service Worker**: Caches app shell, CSS/JS, images, fonts for offline access
 - **Manifest**: Installable as standalone app on mobile/desktop
-- **Offline Sync**: Data entered offline queues in IndexedDB, syncs when back online
+- **Offline Sync**: Data entered offline queues in IndexedDB (500-entry cap), syncs when back online
 - **Push Notifications**: Browser push notifications for nudges (permission requested once per session)
+- **Conflict Resolution**: When offline edits conflict with server, shows both versions for user choice
 
 ---
 
@@ -303,3 +299,5 @@ function MyComponent() {
 | Styles not updating | Tailwind not rebuilding | Restart `npm start` |
 | `craco build` warnings | Unused imports | Safe to ignore; fix with ESLint |
 | Port 3000 already in use | Another process | Kill it or use `PORT=3001 npm start` |
+| `insights.map is not a function` | API response changed shape | Extract `.data.insights` from response |
+| BottomNav mispositioned | Missing `flex-1 overflow-auto` on page root | Add to the page's root div |
