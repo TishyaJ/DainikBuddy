@@ -1070,3 +1070,69 @@ The backend grew from the original `server.py` + 5 service modules to:
 - 15 test files (200+ tests)
 
 This represents a mature, well-structured backend with clear separation of concerns.
+
+
+---
+
+## June 15, 2026 — AWS Deployment: The Journey to a Live URL
+
+### What happened
+Deployed PocketBuddy end-to-end on AWS free tier for the Amazon HackOn demo. What was estimated at 2 hours took about 3 due to Windows SSH key permission issues and a mysterious port 8000 blockage.
+
+### Key Decisions
+
+**Why EC2 + nginx instead of Lambda or ECS:**
+The app uses SSE streaming for AI chat — Lambda has a 29-second timeout and doesn't support persistent connections. ECS/Fargate adds complexity (Docker, task definitions, VPC config) for zero benefit on a demo. A single EC2 t3.micro running uvicorn directly is the simplest possible deployment that supports streaming.
+
+**Why port 80 instead of 8000:**
+The security group correctly had port 8000 open, but traffic still timed out externally. Port 80 worked immediately. Rather than debugging the VPC/NACL layer (which could take hours), switched to port 80 — which is the standard HTTP port anyway and makes URLs cleaner (no `:8000` suffix).
+
+**Why nginx on the same box (not separate):**
+For a demo with <50 concurrent users, running nginx + uvicorn on the same t3.micro is perfectly fine. Nginx serves static frontend files at near-zero CPU cost, and proxies API calls to uvicorn. This also solves CORS entirely — same origin means no cross-origin requests.
+
+**Why serving frontend from EC2 instead of just S3:**
+The S3 URL (`pocketbuddy-frontend-demo.s3-website-ap-southeast-2.amazonaws.com`) worked on desktop browsers but timed out on mobile (likely DNS resolution issues with the long hostname on certain Indian mobile carriers). Serving from the EC2 IP directly (`54.206.59.45`) works universally because it's a direct IP connection — no DNS resolution needed.
+
+**Why we removed Emergent badge + PostHog:**
+The "Made with Emergent" badge was injected via two mechanisms: (1) an inline `<a>` tag with fixed positioning, and (2) a script from `assets.emergent.sh/scripts/emergent-main.js`. PostHog was a separate analytics script doing session recording. Neither are needed for the hackathon demo — they add load time, external dependencies, and the badge covers UI elements on mobile.
+
+### Architecture (Final)
+
+```
+Browser → http://54.206.59.45
+                    │
+                    ▼
+            ┌──────────────┐
+            │    nginx     │ (port 80)
+            │              │
+            │ /api/* → proxy to :8000
+            │ /*     → /var/www/frontend/
+            │        → try_files $uri /index.html
+            └──────┬───────┘
+                   │
+                   ▼
+            ┌──────────────┐
+            │   uvicorn    │ (port 8000, localhost only)
+            │   FastAPI    │
+            │   server.py  │
+            └──────────────┘
+                   │
+                   ▼
+            MongoDB Atlas + LLM APIs
+```
+
+Everything on one box. Simple, free, works.
+
+### Lessons Learned
+1. Windows SSH key permissions are painful — `icacls` needs to strip ALL groups except the current user
+2. AWS Security Groups don't always behave as documented for custom ports — port 80/443 are the safe bet
+3. S3 static websites have DNS issues on some mobile networks — serving from EC2 is more reliable
+4. Never put AWS credentials in files that might be git-pushed (GitHub push protection caught it)
+5. For a hackathon: simple > correct. One box, one URL, zero moving parts to break during a demo.
+
+### Current State
+- **Live URL:** http://54.206.59.45 (frontend + backend, works on all devices)
+- **API Docs:** http://54.206.59.45/docs
+- **Cost:** $0/month (AWS free tier)
+- **Auto-restart:** Yes (systemd enabled)
+- **All code pushed:** Both `demo` and `main` branches up to date on GitHub
