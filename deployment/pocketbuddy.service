@@ -1,0 +1,22 @@
+[Unit]
+Description=PocketBuddy FastAPI Backend
+After=network.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/home/ec2-user/PocketBuddy/backend
+Environment=PATH=/home/ec2-user/PocketBuddy/backend/venv/bin:/usr/bin
+ExecStart=/home/ec2-user/PocketBuddy/backend/venv/bin/gunicorn server:app \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --workers 1 \
+    --bind 127.0.0.1:8000 \
+    --timeout 120 \
+    --graceful-timeout 30 \
+    --access-logfile - \
+    --error-logfile -
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

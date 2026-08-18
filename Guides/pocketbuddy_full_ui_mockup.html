@@ -1,0 +1,1268 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --pb-purple:#7F77DD;--pb-purple-l:#EEEDFE;--pb-purple-d:#3C3489;
+  --pb-blue:#378ADD;--pb-blue-l:#E6F1FB;--pb-blue-d:#0C447C;
+  --pb-lavender:#AFA9EC;--pb-mint:#5DCAA5;--pb-mint-l:#E1F5EE;
+  --pb-coral:#D85A30;--pb-coral-l:#FAECE7;--pb-coral-d:#993C1D;
+  --pb-amber:#EF9F27;--pb-amber-l:#FAEEDA;
+  --pb-gray:#888780;--pb-gray-l:#F1EFE8;
+}
+body{font-family:var(--font-sans,system-ui);background:transparent}
+.app{max-width:390px;margin:0 auto;background:var(--color-background-secondary);border-radius:var(--border-radius-lg);overflow:hidden;border:0.5px solid var(--color-border-tertiary)}
+.phone{background:var(--color-background-primary);min-height:600px;position:relative;display:flex;flex-direction:column}
+.status-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 16px 6px;font-size:12px;font-weight:500;color:var(--color-text-secondary)}
+.header{padding:12px 16px 8px;display:flex;align-items:center;justify-content:space-between}
+.greeting{font-size:17px;font-weight:500;color:var(--color-text-primary)}
+.greeting-sub{font-size:12px;color:var(--color-text-secondary);margin-top:2px}
+.avatar-row{display:flex;align-items:center;gap:10px}
+.avatar{width:36px;height:36px;border-radius:50%;background:var(--pb-purple-l);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:500;color:var(--pb-purple-d)}
+.streak{background:var(--pb-amber-l);border-radius:20px;padding:4px 10px;font-size:11px;font-weight:500;color:#633806;display:flex;align-items:center;gap:4px}
+.notif{width:32px;height:32px;border-radius:50%;background:var(--color-background-secondary);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;color:var(--color-text-secondary);border:0.5px solid var(--color-border-tertiary)}
+
+.domain-scroll{display:flex;gap:8px;padding:8px 16px;overflow-x:auto;scrollbar-width:none}
+.domain-scroll::-webkit-scrollbar{display:none}
+.domain-pill{display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:20px;border:0.5px solid var(--color-border-secondary);background:var(--color-background-primary);cursor:pointer;white-space:nowrap;font-size:12px;font-weight:500;color:var(--color-text-secondary);transition:all .15s}
+.domain-pill.active{background:var(--pb-purple);border-color:var(--pb-purple);color:#fff}
+.domain-pill.fin.active{background:var(--pb-blue);border-color:var(--pb-blue)}
+.domain-pill.well.active{background:var(--pb-lavender);border-color:var(--pb-lavender)}
+.domain-pill.disc.active{background:var(--pb-coral);border-color:var(--pb-coral)}
+.domain-pill.chat.active{background:var(--pb-purple-d);border-color:var(--pb-purple-d)}
+
+.search-bar{margin:6px 16px;display:flex;align-items:center;gap:8px;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:20px;padding:8px 14px;font-size:13px;color:var(--color-text-secondary)}
+.search-bar i{font-size:16px}
+
+.feat-tabs{display:flex;gap:6px;padding:8px 16px;overflow-x:auto;scrollbar-width:none}
+.feat-tabs::-webkit-scrollbar{display:none}
+.feat-tab{padding:5px 12px;border-radius:16px;border:0.5px solid var(--color-border-tertiary);background:var(--color-background-primary);font-size:11px;font-weight:500;color:var(--color-text-secondary);cursor:pointer;white-space:nowrap;transition:all .15s}
+.feat-tab.active{background:var(--active-color,var(--pb-blue));border-color:var(--active-color,var(--pb-blue));color:#fff}
+
+.content{flex:1;padding:0 16px 80px;overflow-y:auto}
+.card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:14px;margin-bottom:10px}
+.card-title{font-size:13px;font-weight:500;color:var(--color-text-secondary);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.card-value{font-size:22px;font-weight:500;color:var(--color-text-primary)}
+.card-sub{font-size:11px;color:var(--color-text-secondary);margin-top:2px}
+.metric-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.metric{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:12px;border:0.5px solid var(--color-border-tertiary)}
+.metric-label{font-size:11px;color:var(--color-text-secondary);margin-bottom:4px}
+.metric-val{font-size:18px;font-weight:500;color:var(--color-text-primary)}
+.metric-badge{display:inline-block;font-size:10px;padding:2px 7px;border-radius:10px;margin-top:3px}
+.badge-green{background:var(--pb-mint-l);color:#085041}
+.badge-amber{background:var(--pb-amber-l);color:#633806}
+.badge-red{background:#FCEBEB;color:#501313}
+.badge-blue{background:var(--pb-blue-l);color:var(--pb-blue-d)}
+.badge-purple{background:var(--pb-purple-l);color:var(--pb-purple-d)}
+
+.progress-wrap{margin-bottom:10px}
+.progress-label{display:flex;justify-content:space-between;font-size:12px;color:var(--color-text-secondary);margin-bottom:4px}
+.progress-bar{height:6px;background:var(--color-background-secondary);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;border-radius:3px;transition:width .3s}
+
+.insight-card{background:var(--pb-purple-l);border:0.5px solid var(--pb-lavender);border-radius:var(--border-radius-lg);padding:14px;margin-bottom:10px;display:flex;gap:10px;align-items:flex-start}
+.insight-icon{font-size:20px;color:var(--pb-purple);margin-top:1px}
+.insight-text{font-size:12px;color:var(--pb-purple-d);line-height:1.5;flex:1}
+.insight-title{font-size:13px;font-weight:500;color:var(--pb-purple-d);margin-bottom:3px}
+
+.quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.quick-btn{background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:14px 12px;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.quick-btn i{font-size:20px;color:var(--pb-purple)}
+.quick-label{font-size:12px;font-weight:500;color:var(--color-text-primary)}
+
+.list-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--color-border-tertiary)}
+.list-item:last-child{border-bottom:none}
+.list-icon{width:36px;height:36px;border-radius:var(--border-radius-md);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.list-title{font-size:13px;font-weight:500;color:var(--color-text-primary)}
+.list-sub{font-size:11px;color:var(--color-text-secondary)}
+.list-right{margin-left:auto;text-align:right}
+.list-amount{font-size:13px;font-weight:500;color:var(--color-text-primary)}
+
+.ring-wrap{display:flex;justify-content:center;margin:10px 0}
+.ring-outer{position:relative;display:inline-flex;align-items:center;justify-content:center}
+.ring-center{text-align:center}
+.ring-val{font-size:24px;font-weight:500;color:var(--color-text-primary)}
+.ring-lbl{font-size:11px;color:var(--color-text-secondary)}
+
+.chat-container{display:flex;flex-direction:column;height:100%;padding:0}
+.chat-header{padding:12px 16px;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;gap:10px}
+.bot-avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.bot-name{font-size:14px;font-weight:500;color:var(--color-text-primary)}
+.bot-status{font-size:11px;color:var(--pb-mint);display:flex;align-items:center;gap:4px}
+.chat-msgs{flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;min-height:300px}
+.msg-bot{align-self:flex-start;max-width:78%}
+.msg-user{align-self:flex-end;max-width:78%}
+.bubble{padding:10px 13px;border-radius:14px;font-size:13px;line-height:1.5}
+.bubble-bot{background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);color:var(--color-text-primary);border-radius:4px 14px 14px 14px}
+.bubble-user{color:#fff;border-radius:14px 14px 4px 14px}
+.bubble-fin-user{background:var(--pb-blue)}
+.bubble-well-user{background:var(--pb-lavender)}
+.bubble-disc-user{background:var(--pb-coral)}
+.bubble-help-user{background:var(--pb-purple)}
+.suggested-prompts{display:flex;flex-wrap:wrap;gap:6px;padding:8px 16px}
+.prompt-chip{padding:6px 12px;border-radius:14px;border:0.5px solid var(--color-border-secondary);font-size:11px;color:var(--color-text-secondary);cursor:pointer;background:var(--color-background-primary)}
+.chat-input-row{padding:10px 16px 14px;display:flex;gap:8px;align-items:center;border-top:0.5px solid var(--color-border-tertiary)}
+.chat-input{flex:1;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:20px;padding:9px 14px;font-size:13px;color:var(--color-text-secondary)}
+.send-btn{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;border:none;cursor:pointer}
+
+.ai-card{border-radius:var(--border-radius-md);padding:10px 12px;margin-top:6px;font-size:12px;line-height:1.5}
+.ai-card-fin{background:var(--pb-blue-l);border:0.5px solid #B5D4F4;color:var(--pb-blue-d)}
+.ai-card-well{background:var(--pb-mint-l);border:0.5px solid #9FE1CB;color:#085041}
+.ai-card-disc{background:var(--pb-coral-l);border:0.5px solid #F5C4B3;color:var(--pb-coral-d)}
+.ai-card-title{font-size:11px;font-weight:500;margin-bottom:4px;opacity:.85}
+
+.mood-row{display:flex;justify-content:space-between;margin:12px 0}
+.mood-btn{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:8px;border-radius:var(--border-radius-md);border:0.5px solid transparent;transition:all .15s}
+.mood-btn.active{border-color:var(--pb-purple);background:var(--pb-purple-l)}
+.mood-emoji{font-size:26px}
+.mood-label{font-size:10px;color:var(--color-text-secondary)}
+
+.slider-wrap{margin:10px 0}
+.slider-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--color-text-secondary);margin-bottom:4px}
+.slider-val{font-size:12px;font-weight:500;color:var(--pb-purple);text-align:right;margin-top:4px}
+
+.food-card{border-radius:var(--border-radius-md);overflow:hidden;border:0.5px solid var(--color-border-tertiary)}
+.food-img{height:90px;background:linear-gradient(135deg,#F5C4B3 0%,#F0997B 100%);display:flex;align-items:center;justify-content:center;font-size:32px}
+.food-info{padding:10px}
+.food-name{font-size:13px;font-weight:500;color:var(--color-text-primary)}
+.food-detail{font-size:11px;color:var(--color-text-secondary);margin-top:2px}
+.food-price{font-size:13px;font-weight:500;color:var(--pb-coral);margin-top:4px}
+.food-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+
+.section-title{font-size:14px;font-weight:500;color:var(--color-text-primary);margin:14px 0 8px;display:flex;justify-content:space-between;align-items:center}
+.see-all{font-size:11px;color:var(--pb-purple);cursor:pointer}
+
+.wellness-score{display:flex;align-items:center;gap:14px;padding:12px;background:var(--color-background-secondary);border-radius:var(--border-radius-lg);margin-bottom:10px;border:0.5px solid var(--color-border-tertiary)}
+.score-circle{width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:500;flex-shrink:0}
+.score-info{flex:1}
+.score-title{font-size:12px;color:var(--color-text-secondary);margin-bottom:2px}
+.score-val{font-size:20px;font-weight:500;color:var(--color-text-primary)}
+.score-desc{font-size:11px;margin-top:2px}
+
+.bottom-nav{position:sticky;bottom:0;background:var(--color-background-primary);border-top:0.5px solid var(--color-border-tertiary);display:flex;justify-content:space-around;padding:8px 0 12px;z-index:10}
+.nav-item{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:4px 8px;border-radius:var(--border-radius-md);min-width:44px}
+.nav-icon{font-size:20px;color:var(--color-text-secondary)}
+.nav-label{font-size:10px;color:var(--color-text-secondary)}
+.nav-item.active .nav-icon,.nav-item.active .nav-label{color:var(--active-nav,var(--pb-purple))}
+
+.fab{position:fixed;bottom:80px;right:20px;width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;border:none;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+
+.deal-card{background:var(--pb-coral-l);border:0.5px solid #F5C4B3;border-radius:var(--border-radius-md);padding:12px;display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.deal-icon{width:44px;height:44px;border-radius:var(--border-radius-md);background:var(--pb-coral);display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;flex-shrink:0}
+.deal-title{font-size:13px;font-weight:500;color:var(--pb-coral-d)}
+.deal-sub{font-size:11px;color:var(--pb-coral)}
+
+.goal-card{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:12px;border:0.5px solid var(--color-border-tertiary);margin-bottom:8px}
+.goal-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.goal-name{font-size:13px;font-weight:500;color:var(--color-text-primary)}
+.goal-pct{font-size:12px;color:var(--pb-purple);font-weight:500}
+
+.check-in-card{background:var(--pb-purple-l);border-radius:var(--border-radius-lg);padding:16px;margin-bottom:10px;border:0.5px solid var(--pb-lavender)}
+.check-in-title{font-size:15px;font-weight:500;color:var(--pb-purple-d);margin-bottom:4px}
+.check-in-sub{font-size:12px;color:var(--pb-purple);margin-bottom:12px}
+
+.summary-row{display:flex;gap:8px;margin-bottom:10px}
+.summary-chip{flex:1;background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px;text-align:center;border:0.5px solid var(--color-border-tertiary)}
+.summary-chip-val{font-size:16px;font-weight:500;color:var(--color-text-primary)}
+.summary-chip-lbl{font-size:10px;color:var(--color-text-secondary);margin-top:2px}
+
+.pomodoro{text-align:center;padding:20px 0}
+.timer-circle{width:140px;height:140px;border-radius:50%;border:3px solid var(--pb-purple);display:flex;flex-direction:column;align-items:center;justify-content:center;margin:0 auto 14px}
+.timer-time{font-size:32px;font-weight:500;color:var(--color-text-primary)}
+.timer-phase{font-size:11px;color:var(--color-text-secondary)}
+.timer-btns{display:flex;gap:10px;justify-content:center}
+.timer-btn{padding:8px 22px;border-radius:20px;border:0.5px solid var(--color-border-secondary);background:var(--color-background-secondary);font-size:13px;font-weight:500;cursor:pointer;color:var(--color-text-primary)}
+.timer-btn.primary{background:var(--pb-purple);border-color:var(--pb-purple);color:#fff}
+
+.nav-domain-active-home{--active-nav:#7F77DD}
+.nav-domain-active-fin{--active-nav:#378ADD}
+.nav-domain-active-well{--active-nav:#AFA9EC}
+.nav-domain-active-disc{--active-nav:#D85A30}
+.nav-domain-active-chat{--active-nav:#534AB7}
+
+.tab-fin{--active-color:#378ADD}
+.tab-well{--active-color:#AFA9EC}
+.tab-disc{--active-color:#D85A30}
+.tab-home{--active-color:#7F77DD}
+
+.envelope-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--color-border-tertiary)}
+.env-color{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.env-name{flex:1;font-size:13px;color:var(--color-text-primary)}
+.env-amount{font-size:13px;font-weight:500;color:var(--color-text-primary)}
+.env-bar-wrap{margin-top:4px;height:3px;background:var(--color-background-secondary);border-radius:2px;overflow:hidden;width:100%}
+.env-bar{height:100%;border-radius:2px}
+
+.burnout-meter{text-align:center;margin:10px 0}
+.meter-bar{height:18px;background:var(--color-background-secondary);border-radius:9px;overflow:hidden;margin:8px 0;border:0.5px solid var(--color-border-tertiary)}
+.meter-fill{height:100%;border-radius:9px;background:linear-gradient(90deg,#5DCAA5,#EF9F27,#E24B4A)}
+
+.route-card{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:12px;margin-bottom:8px;border:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;gap:10px}
+.route-icon{width:40px;height:40px;border-radius:var(--border-radius-md);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.route-info{flex:1}
+.route-name{font-size:13px;font-weight:500;color:var(--color-text-primary)}
+.route-detail{font-size:11px;color:var(--color-text-secondary)}
+.route-price{font-size:13px;font-weight:500;color:var(--pb-coral)}
+
+.journal-input{width:100%;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:12px;font-size:13px;color:var(--color-text-secondary);min-height:100px;resize:none;line-height:1.5}
+.voice-btn{width:54px;height:54px;border-radius:50%;background:var(--pb-purple);border:none;display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;cursor:pointer;margin:10px auto}
+</style>
+
+<h2 class="sr-only">PocketBuddy — full mobile UI mockup across all domains, feature tabs, and chatbot screens</h2>
+
+<div style="padding:12px">
+<p style="font-size:13px;font-weight:500;color:var(--color-text-secondary);margin-bottom:10px;text-align:center;letter-spacing:.4px;text-transform:uppercase;font-size:11px">PocketBuddy · Interactive UI Explorer</p>
+
+<div class="app">
+<div class="phone" id="phone">
+
+<div class="status-bar">
+  <span>9:41</span>
+  <span style="display:flex;align-items:center;gap:6px"><i class="ti ti-signal-3g" style="font-size:14px" aria-hidden="true"></i><i class="ti ti-wifi" style="font-size:14px" aria-hidden="true"></i><i class="ti ti-battery-2" style="font-size:14px" aria-hidden="true"></i></span>
+</div>
+
+<div class="header">
+  <div>
+    <div class="greeting" id="greeting-text">Good morning, Alex ☀️</div>
+    <div class="greeting-sub" id="greeting-sub">Here's your snapshot for today</div>
+  </div>
+  <div class="avatar-row">
+    <div class="streak"><i class="ti ti-flame" aria-hidden="true"></i>14</div>
+    <div class="notif"><i class="ti ti-bell" aria-hidden="true"></i></div>
+    <div class="avatar">A</div>
+  </div>
+</div>
+
+<div class="domain-scroll" id="domain-scroll">
+  <div class="domain-pill active" onclick="switchDomain('home')"><i class="ti ti-home" aria-hidden="true"></i> Daily</div>
+  <div class="domain-pill fin" onclick="switchDomain('fin')"><i class="ti ti-piggy-bank" aria-hidden="true"></i> Finance</div>
+  <div class="domain-pill well" onclick="switchDomain('well')"><i class="ti ti-heart" aria-hidden="true"></i> Wellness</div>
+  <div class="domain-pill disc" onclick="switchDomain('disc')"><i class="ti ti-compass" aria-hidden="true"></i> Discover</div>
+  <div class="domain-pill chat" onclick="switchDomain('chat')"><i class="ti ti-robot" aria-hidden="true"></i> Helper</div>
+</div>
+
+<div class="search-bar"><i class="ti ti-search" aria-hidden="true"></i><span>Ask PocketBuddy anything…</span></div>
+
+<div class="feat-tabs tab-home" id="feat-tabs"></div>
+
+<div class="content" id="main-content"></div>
+
+<nav class="bottom-nav nav-domain-active-home" id="bottom-nav">
+  <div class="nav-item active" onclick="switchNav('home')"><i class="ti ti-home nav-icon" aria-hidden="true"></i><span class="nav-label">Home</span></div>
+  <div class="nav-item" onclick="switchNav('fin')"><i class="ti ti-chart-line nav-icon" aria-hidden="true"></i><span class="nav-label">Finance</span></div>
+  <div class="nav-item" onclick="switchNav('well')"><i class="ti ti-leaf nav-icon" aria-hidden="true"></i><span class="nav-label">Wellness</span></div>
+  <div class="nav-item" onclick="switchNav('disc')"><i class="ti ti-compass nav-icon" aria-hidden="true"></i><span class="nav-label">Discover</span></div>
+  <div class="nav-item" onclick="switchNav('chat')"><i class="ti ti-message-2 nav-icon" aria-hidden="true"></i><span class="nav-label">Chat</span></div>
+</nav>
+
+</div>
+</div>
+
+<div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px" id="screen-nav-btns"></div>
+
+</div>
+
+<script>
+const DOMAINS = {
+  home:{label:'Daily Check-In',color:'#7F77DD',tabClass:'tab-home',navClass:'nav-domain-active-home',greeting:'Good morning, Alex ☀️',greetingSub:"Here's your snapshot for today",
+    tabs:['Mood Check','Expense Input','Journal','Goal Review','AI Summary'],
+    screens:{
+      'Mood Check': moodScreen,
+      'Expense Input': expenseInputScreen,
+      'Journal': journalScreen,
+      'Goal Review': goalReviewScreen,
+      'AI Summary': aiSummaryScreen
+    }
+  },
+  fin:{label:'Finance Buddy',color:'#378ADD',tabClass:'tab-fin',navClass:'nav-domain-active-fin',greeting:'Finance Buddy 🦉',greetingSub:'Track. Plan. Achieve.',
+    tabs:['Dashboard','Budget','Expenses','Cash Flow','Alerts','Subscriptions','Food/Travel','Emergency','Savings','Split Bills','Chatbot'],
+    screens:{
+      'Dashboard': finDashboard,
+      'Budget': budgetScreen,
+      'Expenses': expensesScreen,
+      'Cash Flow': cashFlowScreen,
+      'Alerts': alertsScreen,
+      'Subscriptions': subscriptionsScreen,
+      'Food/Travel': foodTravelScreen,
+      'Emergency': emergencyScreen,
+      'Savings': savingsScreen,
+      'Split Bills': splitBillsScreen,
+      'Chatbot': finChatbot
+    }
+  },
+  well:{label:'Wellness Buddy',color:'#AFA9EC',tabClass:'tab-well',navClass:'nav-domain-active-well',greeting:'Wellness Buddy ☁️',greetingSub:'Mind. Body. Balance.',
+    tabs:['Dashboard','Sleep','Burnout','Stress','Routine','Check-Ins','Focus','Social','Support','Chatbot'],
+    screens:{
+      'Dashboard': wellDashboard,
+      'Sleep': sleepScreen,
+      'Burnout': burnoutScreen,
+      'Stress': stressScreen,
+      'Routine': routineScreen,
+      'Check-Ins': checkInsScreen,
+      'Focus': focusScreen,
+      'Social': socialScreen,
+      'Support': supportScreen,
+      'Chatbot': wellChatbot
+    }
+  },
+  disc:{label:'Discover Buddy',color:'#D85A30',tabClass:'tab-disc',navClass:'nav-domain-active-disc',greeting:'Discover Buddy 🧭',greetingSub:'Eat well. Travel smart. Save more.',
+    tabs:['Dashboard','Food','Travel','Safe Night','Snacks','Activities','Campus','Goals','Fitness','Chatbot'],
+    screens:{
+      'Dashboard': discDashboard,
+      'Food': foodScreen,
+      'Travel': travelScreen,
+      'Safe Night': safeNightScreen,
+      'Snacks': snacksScreen,
+      'Activities': activitiesScreen,
+      'Campus': campusScreen,
+      'Goals': goalsScreen,
+      'Fitness': fitnessScreen,
+      'Chatbot': discChatbot
+    }
+  },
+  chat:{label:'Helper Buddy',color:'#534AB7',tabClass:'tab-home',navClass:'nav-domain-active-chat',greeting:'Helper Buddy 🤖',greetingSub:'Your master AI orchestrator',
+    tabs:['Command','Daily Insights','Weekly Review','Analytics','Life Balance','Chatbot'],
+    screens:{
+      'Command': helperCommand,
+      'Daily Insights': helperInsights,
+      'Weekly Review': helperReview,
+      'Analytics': helperAnalytics,
+      'Life Balance': helperBalance,
+      'Chatbot': helperChatbot
+    }
+  }
+};
+
+let currentDomain = 'home';
+let currentTab = 'Mood Check';
+
+function switchDomain(d){
+  currentDomain = d;
+  const dom = DOMAINS[d];
+  currentTab = dom.tabs[0];
+  document.getElementById('greeting-text').textContent = dom.greeting;
+  document.getElementById('greeting-sub').textContent = dom.greetingSub;
+  document.querySelectorAll('.domain-pill').forEach((el,i)=>{
+    el.classList.toggle('active', ['home','fin','well','disc','chat'][i]===d);
+  });
+  const nav = document.getElementById('bottom-nav');
+  nav.className = 'bottom-nav '+dom.navClass;
+  document.querySelectorAll('.nav-item').forEach((el,i)=>{
+    el.classList.toggle('active', ['home','fin','well','disc','chat'][i]===d);
+  });
+  renderTabs();
+  renderContent();
+}
+
+function switchNav(d){ switchDomain(d); }
+
+function renderTabs(){
+  const dom = DOMAINS[currentDomain];
+  const ft = document.getElementById('feat-tabs');
+  ft.className = 'feat-tabs ' + dom.tabClass;
+  ft.innerHTML = dom.tabs.map(t=>
+    `<div class="feat-tab${t===currentTab?' active':''}" onclick="switchTab('${t}')">${t}</div>`
+  ).join('');
+}
+
+function switchTab(t){
+  currentTab = t;
+  renderTabs();
+  renderContent();
+}
+
+function renderContent(){
+  const dom = DOMAINS[currentDomain];
+  const fn = dom.screens[currentTab];
+  document.getElementById('main-content').innerHTML = fn ? fn() : `<div style="padding:20px;text-align:center;color:var(--color-text-secondary);font-size:13px">Screen coming soon</div>`;
+}
+
+function moodScreen(){return`
+<div class="check-in-card">
+  <div class="check-in-title">How are you feeling today?</div>
+  <div class="check-in-sub">Your mood helps PocketBuddy personalize everything</div>
+  <div class="mood-row">
+    <div class="mood-btn"><div class="mood-emoji">😄</div><div class="mood-label">Great</div></div>
+    <div class="mood-btn active"><div class="mood-emoji">🙂</div><div class="mood-label">Good</div></div>
+    <div class="mood-btn"><div class="mood-emoji">😐</div><div class="mood-label">Okay</div></div>
+    <div class="mood-btn"><div class="mood-emoji">😔</div><div class="mood-label">Low</div></div>
+    <div class="mood-btn"><div class="mood-emoji">😰</div><div class="mood-label">Stressed</div></div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title"><i class="ti ti-bolt" aria-hidden="true"></i> Energy level</div>
+  <div class="slider-wrap">
+    <div class="slider-labels"><span>Exhausted</span><span>Energized</span></div>
+    <input type="range" min="0" max="10" value="7" style="width:100%">
+    <div class="slider-val">7 / 10</div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title"><i class="ti ti-brain" aria-hidden="true"></i> Stress level</div>
+  <div class="slider-wrap">
+    <div class="slider-labels"><span>Calm</span><span>Very stressed</span></div>
+    <input type="range" min="0" max="10" value="4" style="width:100%">
+    <div class="slider-val">4 / 10</div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title"><i class="ti ti-target" aria-hidden="true"></i> Motivation score</div>
+  <div class="slider-wrap">
+    <div class="slider-labels"><span>Unmotivated</span><span>Fired up</span></div>
+    <input type="range" min="0" max="10" value="6" style="width:100%">
+    <div class="slider-val">6 / 10</div>
+  </div>
+</div>
+<div class="insight-card">
+  <i class="ti ti-sparkles insight-icon" aria-hidden="true"></i>
+  <div><div class="insight-title">AI check-in note</div><div class="insight-text">You're feeling good but moderately stressed. Scheduling a 10-min break after your 3 PM class may help recovery.</div></div>
+</div>
+<button style="width:100%;background:var(--pb-purple);color:#fff;border:none;border-radius:var(--border-radius-lg);padding:13px;font-size:14px;font-weight:500;cursor:pointer">Save today's check-in →</button>
+`}
+
+function expenseInputScreen(){return`
+<div class="card">
+  <div class="card-title"><i class="ti ti-plus" aria-hidden="true"></i> Add today's expense</div>
+  <div style="margin-bottom:10px">
+    <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:4px">Amount (₹)</div>
+    <input type="number" placeholder="0.00" style="width:100%;font-size:22px;font-weight:500;border:none;border-bottom:1px solid var(--color-border-secondary);padding:8px 0;background:transparent;color:var(--color-text-primary)">
+  </div>
+  <div style="margin-bottom:10px">
+    <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:4px">Merchant / Description</div>
+    <input type="text" placeholder="e.g. Campus Café" style="width:100%;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:8px 12px;font-size:13px;color:var(--color-text-secondary)">
+  </div>
+  <div class="card-title" style="margin-top:10px">Category (AI-detected)</div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
+    ${['🍔 Food','🚌 Transport','📚 Education','🎮 Leisure','🏥 Health','💡 Utilities'].map((c,i)=>`<div style="padding:5px 12px;border-radius:14px;border:0.5px solid ${i===0?'var(--pb-blue)':'var(--color-border-tertiary)'};background:${i===0?'var(--pb-blue-l)':'var(--color-background-primary)'};font-size:11px;cursor:pointer;color:${i===0?'var(--pb-blue-d)':'var(--color-text-secondary)'}">${c}</div>`).join('')}
+  </div>
+</div>
+<div style="display:flex;gap:8px;margin-bottom:10px">
+  <button style="flex:1;background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);padding:11px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;color:var(--color-text-primary)"><i class="ti ti-camera" aria-hidden="true"></i> Scan receipt</button>
+  <button style="flex:1;background:var(--pb-purple);color:#fff;border:none;border-radius:var(--border-radius-md);padding:11px;font-size:13px;font-weight:500;cursor:pointer">Log expense</button>
+</div>
+<div class="card-title" style="margin-bottom:8px">Today's expenses</div>
+${[['🍔','Mess Express','Food','₹80'],['🚌','Bus — College route','Transport','₹25'],['📚','Photocopy — Notes','Education','₹45']].map(([ic,n,cat,amt])=>`
+<div class="list-item">
+  <div class="list-icon" style="background:var(--pb-blue-l)">${ic}</div>
+  <div><div class="list-title">${n}</div><div class="list-sub">${cat} · Today</div></div>
+  <div class="list-right"><div class="list-amount">${amt}</div></div>
+</div>`).join('')}
+`}
+
+function journalScreen(){return`
+<div class="card">
+  <div class="card-title"><i class="ti ti-pencil" aria-hidden="true"></i> Today's journal</div>
+  <textarea class="journal-input" placeholder="How was your day? What's on your mind?…">Finished the data structures assignment finally. Feeling relieved but a bit drained from the all-nighter. The campus café was nice for a quick break.</textarea>
+</div>
+<div style="text-align:center;margin:8px 0">
+  <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:6px">Or speak your thoughts</div>
+  <button class="voice-btn"><i class="ti ti-microphone" aria-hidden="true"></i></button>
+</div>
+<div class="insight-card" style="background:var(--pb-mint-l);border-color:#9FE1CB">
+  <i class="ti ti-sparkles" style="font-size:20px;color:var(--pb-mint);margin-top:1px" aria-hidden="true"></i>
+  <div>
+    <div class="insight-title" style="color:#085041">AI journal summary</div>
+    <div class="insight-text" style="color:#085041">Productive day with task completion. Mild fatigue detected — rest recommended. Positive social signal (café break). Sentiment: <span style="font-weight:500">Moderately positive</span>.</div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title">Sentiment trend this week</div>
+  <div style="display:flex;align-items:flex-end;gap:6px;height:60px">
+    ${[60,40,70,50,80,65,75].map((h,i)=>`<div style="flex:1;height:${h}%;background:${i===6?'var(--pb-purple)':'var(--color-background-secondary)'};border-radius:4px 4px 0 0;border:0.5px solid var(--color-border-tertiary)"></div>`).join('')}
+  </div>
+  <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--color-text-secondary);margin-top:4px">
+    ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<span>${d}</span>`).join('')}
+  </div>
+</div>
+`}
+
+function goalReviewScreen(){return`
+<div class="section-title">Today's goals <span class="see-all">Edit goals</span></div>
+${[{g:'Study 4 hours',p:75,done:false},{g:'Drink 8 glasses water',p:100,done:true},{g:'Save ₹50 today',p:60,done:false},{g:'10-min mindfulness',p:0,done:false}].map(({g,p,done})=>`
+<div class="goal-card">
+  <div class="goal-row">
+    <div style="display:flex;align-items:center;gap:8px"><div style="width:18px;height:18px;border-radius:50%;border:1.5px solid ${done?'var(--pb-mint)':'var(--color-border-secondary)'};background:${done?'var(--pb-mint-l)':'transparent'};display:flex;align-items:center;justify-content:center;font-size:11px">${done?'✓':''}</div><div class="goal-name">${g}</div></div>
+    <div class="goal-pct">${p}%</div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" style="width:${p}%;background:${done?'var(--pb-mint)':p>50?'var(--pb-purple)':'var(--pb-amber)'}"></div></div>
+</div>`).join('')}
+<div class="insight-card">
+  <i class="ti ti-sparkles insight-icon" aria-hidden="true"></i>
+  <div><div class="insight-title">AI recommendations</div><div class="insight-text">You're 75% through your study goal. A 25-min focus sprint now will close it out. Your water goal is complete — great habit!</div></div>
+</div>
+<div class="section-title">Missed yesterday <span class="see-all">See all</span></div>
+<div class="card" style="display:flex;align-items:center;gap:10px">
+  <i class="ti ti-moon" style="font-size:20px;color:var(--pb-lavender)" aria-hidden="true"></i>
+  <div><div class="list-title">Sleep by 11 PM</div><div class="list-sub">Slept at 1:20 AM · -2h from target</div></div>
+  <span class="metric-badge badge-amber" style="margin-left:auto">Missed</span>
+</div>
+`}
+
+function aiSummaryScreen(){return`
+<div class="check-in-card">
+  <div class="check-in-title">Today's AI summary</div>
+  <div class="check-in-sub">Personalized across all your domains</div>
+  <div class="summary-row">
+    <div class="summary-chip"><div class="summary-chip-val">₹150</div><div class="summary-chip-lbl">Spent today</div></div>
+    <div class="summary-chip"><div class="summary-chip-val">6.5h</div><div class="summary-chip-lbl">Sleep</div></div>
+    <div class="summary-chip"><div class="summary-chip-val">68</div><div class="summary-chip-lbl">Wellness score</div></div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title" style="color:var(--pb-blue-d)"><i class="ti ti-piggy-bank" aria-hidden="true"></i> Finance summary</div>
+  <div class="insight-text" style="font-size:12px;color:var(--color-text-secondary)">You spent ₹150 today, ₹30 under daily average. Snack spend is 20% up this week. Consider hostel mess twice to save ₹250.</div>
+</div>
+<div class="card">
+  <div class="card-title" style="color:#085041"><i class="ti ti-heart" aria-hidden="true"></i> Wellness summary</div>
+  <div class="insight-text" style="font-size:12px;color:var(--color-text-secondary)">Moderate stress detected. Sleep 45min below your norm. Recommend a 10-min walk and wind-down by 10:30 PM tonight.</div>
+</div>
+<div class="card">
+  <div class="card-title" style="color:var(--pb-purple-d)"><i class="ti ti-target" aria-hidden="true"></i> Productivity summary</div>
+  <div class="insight-text" style="font-size:12px;color:var(--color-text-secondary)">3 of 4 goals on track. Assignment submitted. You studied 3h today — 1h short of target. Great journal entry!</div>
+</div>
+<div class="insight-card">
+  <i class="ti ti-sparkles insight-icon" aria-hidden="true"></i>
+  <div><div class="insight-title">Personalized advice for tomorrow</div><div class="insight-text">Sleep by 10:30 PM · Pack lunch from hostel · Start DSA revision at 9 AM · Drink water before coffee ☕</div></div>
+</div>
+`}
+
+function finDashboard(){return`
+<div class="ring-wrap">
+  <div class="ring-outer">
+    <svg width="130" height="130" viewBox="0 0 130 130">
+      <circle cx="65" cy="65" r="54" fill="none" stroke="var(--color-background-secondary)" stroke-width="14"/>
+      <circle cx="65" cy="65" r="54" fill="none" stroke="#378ADD" stroke-width="14" stroke-dasharray="${2*Math.PI*54*0.69} ${2*Math.PI*54*0.31}" stroke-dashoffset="${2*Math.PI*54*0.25}" stroke-linecap="round"/>
+      <text x="65" y="60" text-anchor="middle" font-size="18" font-weight="500" fill="var(--color-text-primary)">₹12,400</text>
+      <text x="65" y="76" text-anchor="middle" font-size="11" fill="var(--color-text-secondary)">of ₹18,000</text>
+      <text x="65" y="90" text-anchor="middle" font-size="11" fill="#378ADD">69% used</text>
+    </svg>
+  </div>
+</div>
+<div class="metric-row">
+  <div class="metric"><div class="metric-label">Remaining</div><div class="metric-val">₹5,600</div><div class="metric-badge badge-green">On track</div></div>
+  <div class="metric"><div class="metric-label">Saved this month</div><div class="metric-val">₹1,800</div><div class="metric-badge badge-blue">+₹300</div></div>
+</div>
+<div class="section-title">Categories <span class="see-all">See all</span></div>
+${[['🍔','Food','₹4,330','₹6,000',72,'#378ADD'],['🚌','Transport','₹1,660','₹3,000',55,'var(--pb-purple)'],['🎮','Entertainment','₹1,200','₹2,000',60,'var(--pb-amber)'],['📚','Education','₹2,800','₹4,000',70,'var(--pb-mint)']].map(([ic,n,s,t,p,c])=>`
+<div class="progress-wrap">
+  <div class="progress-label"><span>${ic} ${n}</span><span>${s} / ${t}</span></div>
+  <div class="progress-bar"><div class="progress-fill" style="width:${p}%;background:${c}"></div></div>
+</div>`).join('')}
+<div class="insight-card">
+  <i class="ti ti-sparkles insight-icon" aria-hidden="true"></i>
+  <div><div class="insight-title">Finance insight</div><div class="insight-text">You spent 22% more on snacks this week. Trying hostel mess twice could save around ₹250.</div></div>
+</div>
+`}
+
+function budgetScreen(){return`
+<div class="card">
+  <div class="card-title"><i class="ti ti-adjustments" aria-hidden="true"></i> Monthly budget — June 2026</div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div><div class="card-value">₹18,000</div><div class="card-sub">Total budget</div></div>
+    <button style="padding:7px 14px;background:var(--pb-blue-l);border:0.5px solid #B5D4F4;border-radius:14px;font-size:12px;font-weight:500;color:var(--pb-blue-d);cursor:pointer">Adjust</button>
+  </div>
+</div>
+<div class="section-title">Envelope budgets</div>
+${[['Food','₹6,000','₹4,330',72,'#378ADD'],['Transport','₹3,000','₹1,660',55,'var(--pb-purple)'],['Education','₹4,000','₹2,800',70,'var(--pb-mint)'],['Leisure','₹2,000','₹1,200',60,'var(--pb-amber)'],['Misc','₹3,000','₹1,520',51,'var(--pb-gray)']].map(([n,total,spent,p,c])=>`
+<div class="envelope-item">
+  <div class="env-color" style="background:${c}"></div>
+  <div style="flex:1">
+    <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span class="env-name">${n}</span><span style="font-size:12px;color:var(--color-text-secondary)">${spent} / ${total}</span></div>
+    <div class="env-bar-wrap"><div class="env-bar" style="width:${p}%;background:${c}"></div></div>
+  </div>
+</div>`).join('')}
+<div class="insight-card" style="margin-top:12px">
+  <i class="ti ti-sparkles insight-icon" aria-hidden="true"></i>
+  <div><div class="insight-title">Budget wizard tip</div><div class="insight-text">Move ₹500 from Misc to Food — your food spend is trending 12% over target this week.</div></div>
+</div>
+`}
+
+function expensesScreen(){return`
+<div class="metric-row">
+  <div class="metric"><div class="metric-label">This month</div><div class="metric-val">₹12,400</div><div class="metric-badge badge-blue">June</div></div>
+  <div class="metric"><div class="metric-label">Last month</div><div class="metric-val">₹11,200</div><div class="metric-badge badge-amber">+10.7%</div></div>
+</div>
+<div class="section-title">Recent transactions <span class="see-all">All</span></div>
+${[['🍔','Mess Express','-₹80','Food','Today 8:30 AM','green'],['🚌','Bus Pass top-up','-₹200','Transport','Yesterday','blue'],['☕','Campus Café','-₹65','Leisure','Yesterday','amber'],['📚','Printer — Lab','₹-35','Education','June 11','purple'],['💊','Medicine — Pharmacy','-₹120','Health','June 10','red']].map(([ic,n,amt,cat,time,col])=>`
+<div class="list-item">
+  <div class="list-icon" style="background:var(--pb-${col==='green'?'mint-l':col==='blue'?'blue-l':col==='amber'?'amber-l':col==='red'?'coral-l':'purple-l'})">${ic}</div>
+  <div><div class="list-title">${n}</div><div class="list-sub">${cat} · ${time}</div></div>
+  <div class="list-right"><div class="list-amount">${amt}</div></div>
+</div>`).join('')}
+<button style="width:100%;margin-top:10px;background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);padding:10px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;color:var(--color-text-primary)"><i class="ti ti-camera" aria-hidden="true"></i> Scan a receipt</button>
+`}
+
+function cashFlowScreen(){return`
+<div class="card">
+  <div class="card-title"><i class="ti ti-trending-up" aria-hidden="true"></i> Month-end forecast</div>
+  <div class="card-value" style="color:var(--pb-mint)">₹2,800</div>
+  <div class="card-sub">Predicted balance on June 30</div>
+</div>
+<div class="card">
+  <div class="card-title">Spending trend</div>
+  <div style="display:flex;align-items:flex-end;gap:4px;height:80px">
+    ${[45,60,40,70,55,65,80,50,60,70,55,65,80,72].map((h,i)=>`<div style="flex:1;height:${h}%;background:${i===13?'var(--pb-blue)':'var(--pb-blue-l)'};border-radius:3px 3px 0 0;border:0.5px solid #B5D4F4"></div>`).join('')}
+  </div>
+  <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--color-text-secondary);margin-top:4px"><span>June 1</span><span>Today</span><span>June 30 ↗</span></div>
+</div>
+<div class="metric-row">
+  <div class="metric"><div class="metric-label">Daily avg spend</div><div class="metric-val">₹413</div><div class="metric-badge badge-blue">Normal</div></div>
+  <div class="metric"><div class="metric-label">Underspent budget</div><div class="metric-val">₹800</div><div class="metric-badge badge-green">Reallocate</div></div>
+</div>
+<div class="insight-card">
+  <i class="ti ti-sparkles insight-icon" aria-hidden="true"></i>
+  <div><div class="insight-title">Cash flow alert</div><div class="insight-text">At current rate, balance hits zero 3 days before month end. Recommend cutting leisure by ₹300.</div></div>
+</div>
+`}
+
+function alertsScreen(){return`
+<div class="card" style="border-left:3px solid var(--pb-amber);border-radius:0 var(--border-radius-lg) var(--border-radius-lg) 0">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ti ti-alert-triangle" style="font-size:18px;color:var(--pb-amber)" aria-hidden="true"></i><div style="font-size:13px;font-weight:500;color:var(--color-text-primary)">Food budget at 72%</div><span class="metric-badge badge-amber" style="margin-left:auto">Warning</span></div>
+  <div style="font-size:12px;color:var(--color-text-secondary)">You've spent ₹4,330 of ₹6,000 with 10 days left. Try hostel mess to slow down.</div>
+</div>
+<div class="card" style="border-left:3px solid #E24B4A;border-radius:0 var(--border-radius-lg) var(--border-radius-lg) 0">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ti ti-alert-circle" style="font-size:18px;color:#E24B4A" aria-hidden="true"></i><div style="font-size:13px;font-weight:500;color:var(--color-text-primary)">Electricity 30% higher</div><span class="metric-badge badge-red" style="margin-left:auto">Alert</span></div>
+  <div style="font-size:12px;color:var(--color-text-secondary)">Electricity bill this month is ₹390 vs ₹300 last month. Check hostel usage.</div>
+</div>
+<div class="card" style="border-left:3px solid var(--pb-mint);border-radius:0 var(--border-radius-lg) var(--border-radius-lg) 0">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ti ti-check" style="font-size:18px;color:var(--pb-mint)" aria-hidden="true"></i><div style="font-size:13px;font-weight:500;color:var(--color-text-primary)">Transport within budget</div><span class="metric-badge badge-green" style="margin-left:auto">Good</span></div>
+  <div style="font-size:12px;color:var(--color-text-secondary)">Transport spend is 12% below threshold. On track.</div>
+</div>
+<div class="section-title">Set alert thresholds</div>
+<div class="card">
+  <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:8px">Alert me when category hits</div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <input type="range" min="50" max="100" value="80" style="flex:1">
+    <span style="font-size:14px;font-weight:500;color:var(--pb-blue);min-width:36px">80%</span>
+  </div>
+</div>
+`}
+
+function subscriptionsScreen(){return`
+<div class="metric-row">
+  <div class="metric"><div class="metric-label">Monthly recurring</div><div class="metric-val">₹1,240</div><div class="metric-badge badge-amber">5 subs</div></div>
+  <div class="metric"><div class="metric-label">Next renewal</div><div class="metric-val">June 15</div><div class="metric-badge badge-blue">Gym</div></div>
+</div>
+<div class="section-title">Active subscriptions</div>
+${[['🏋️','Gym membership','₹5,000/mo','Every 5th',true],['📺','OTT Platform','₹499/mo','June 20',true],['🎵','Music app','₹119/mo','June 18',false],['📦','Cloud storage','₹200/mo','June 25',true],['🛡️','VPN','₹299/mo','June 28',false]].map(([ic,n,amt,when,active])=>`
+<div class="list-item">
+  <div class="list-icon" style="background:var(--pb-blue-l)">${ic}</div>
+  <div><div class="list-title">${n}</div><div class="list-sub">${when}</div></div>
+  <div class="list-right"><div class="list-amount" style="color:${active?'var(--color-text-primary)':'var(--color-text-secondary)'}">${amt}</div><div style="font-size:10px;color:${active?'var(--pb-mint)':'var(--pb-gray)'}">${active?'Active':'Paused'}</div></div>
+</div>`).join('')}
+<div class="insight-card">
+  <i class="ti ti-sparkles insight-icon" aria-hidden="true"></i>
+  <div><div class="insight-title">Subscription tip</div><div class="insight-text">You have ₹618/mo in streaming & music. Consider sharing OTT with friends to cut cost by ~₹350.</div></div>
+</div>
+`}
+
+function foodTravelScreen(){return`
+<div class="section-title">Food budget</div>
+<div class="metric-row">
+  <div class="metric"><div class="metric-label">Weekly food target</div><div class="metric-val">₹1,500</div><div class="metric-badge badge-amber">₹1,280 used</div></div>
+  <div class="metric"><div class="metric-label">Remaining</div><div class="metric-val">₹220</div><div class="metric-badge badge-green">3 days left</div></div>
+</div>
+<div class="progress-wrap">
+  <div class="progress-label"><span>Week spending</span><span>85%</span></div>
+  <div class="progress-bar"><div class="progress-fill" style="width:85%;background:var(--pb-amber)"></div></div>
+</div>
+<div class="insight-card">
+  <i class="ti ti-sparkles insight-icon" aria-hidden="true"></i>
+  <div><div class="insight-title">Food savings tip</div><div class="insight-text">Home cooking one meal saves ₹150. Hostel mess is ₹60 vs Café's ₹120 — same nutrition score.</div></div>
+</div>
+<div class="section-title">Travel budget</div>
+<div class="metric-row">
+  <div class="metric"><div class="metric-label">Monthly travel</div><div class="metric-val">₹1,660</div><div class="metric-badge badge-green">Under budget</div></div>
+  <div class="metric"><div class="metric-label">Saved on travel</div><div class="metric-val">₹340</div><div class="metric-badge badge-blue">Bus pass</div></div>
+</div>
+${[['🚌','Metro — Monthly pass','Best value','₹900/mo'],['🚲','Cycle share app','Eco + free exercise','₹200/mo'],['🛵','Ride-share pool','Morning commute','₹1,800/mo']].map(([ic,n,desc,p])=>`
+<div class="route-card">
+  <div class="route-icon" style="background:var(--pb-coral-l)">${ic}</div>
+  <div class="route-info"><div class="route-name">${n}</div><div class="route-detail">${desc}</div></div>
+  <div class="route-price">${p}</div>
+</div>`).join('')}
+`}
+
+function emergencyScreen(){return`
+<div class="card" style="text-align:center;padding:20px">
+  <div style="font-size:13px;color:var(--color-text-secondary);margin-bottom:8px">Emergency readiness</div>
+  <div class="burnout-meter">
+    <div style="font-size:28px;font-weight:500;color:var(--color-text-primary)">42%</div>
+    <div class="meter-bar"><div class="meter-fill" style="width:42%"></div></div>
+    <div style="font-size:11px;color:var(--color-text-secondary)">Target: 3× monthly expense (₹54,000)</div>
+  </div>
+  <div style="font-size:12px;color:var(--pb-blue-d);background:var(--pb-blue-l);border-radius:var(--border-radius-md);padding:10px;margin-top:8px">Current emergency fund: ₹22,800</div>
+</div>
+<div class="metric-row">
+  <div class="metric"><div class="metric-label">Monthly target add</div><div class="metric-val">₹1,500</div><div class="metric-badge badge-blue">Suggested</div></div>
+  <div class="metric"><div class="metric-label">Reach target in</div><div class="metric-val">14 mo</div><div class="metric-badge badge-green">At pace</div></div>
+</div>
+<div class="insight-card">
+  <i class="ti ti-sparkles insight-icon" aria-hidden="true"></i>
+  <div><div class="insight-title">Emergency nudge</div><div class="insight-text">Your medical expense last month was ₹820. Consider depositing ₹200 extra this month to buffer unexpected spikes.</div></div>
+</div>
+<div class="card">
+  <div class="card-title"><i class="ti ti-chart-line" aria-hidden="true"></i> Fund growth tracking</div>
+  <div style="display:flex;align-items:flex-end;gap:5px;height:60px">
+    ${[20,24,28,30,35,38,42].map((h,i)=>`<div style="flex:1;height:${h*2}%;background:${i===6?'var(--pb-mint)':'var(--pb-mint-l)'};border-radius:3px 3px 0 0;border:0.5px solid #9FE1CB"></div>`).join('')}
+  </div>
+  <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--color-text-secondary);margin-top:4px"><span>Dec</span><span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span></div>
+</div>
+`}
+
+function savingsScreen(){return`
+<div class="section-title">Savings goals</div>
+${[{name:'New laptop 💻',target:'₹60,000',saved:'₹22,000',p:37,c:'var(--pb-blue)'},
+   {name:'Study abroad ✈️',target:'₹1,50,000',saved:'₹45,000',p:30,c:'var(--pb-purple)'},
+   {name:'Emergency fund 🛡️',target:'₹54,000',saved:'₹22,800',p:42,c:'var(--pb-mint)'}].map(g=>`
+<div class="goal-card">
+  <div class="goal-row">
+    <div class="goal-name">${g.name}</div>
+    <div class="goal-pct">${g.p}%</div>
+  </div>
+  <div class="progress-bar" style="margin-bottom:6px"><div class="progress-fill" style="width:${g.p}%;background:${g.c}"></div></div>
+  <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--color-text-secondary)"><span>${g.saved} saved</span><span>Target: ${g.target}</span></div>
+</div>`).join('')}
+<div class="insight-card">
+  <i class="ti ti-sparkles insight-icon" aria-hidden="true"></i>
+  <div><div class="insight-title">Micro-savings plan</div><div class="insight-text">Saving ₹200/day reaches your laptop fund in 190 days. Cut OTT sharing and redirect ₹250/mo toward it.</div></div>
+</div>
+<button style="width:100%;background:var(--pb-blue);color:#fff;border:none;border-radius:var(--border-radius-lg);padding:12px;font-size:14px;font-weight:500;cursor:pointer;margin-top:4px"><i class="ti ti-plus" aria-hidden="true"></i> Create new goal</button>
+`}
+
+function splitBillsScreen(){return`
+<div class="section-title">Split bills</div>
+<div class="card">
+  <div class="card-title"><i class="ti ti-users" aria-hidden="true"></i> Recent group: Hostel floor 3</div>
+  ${[{name:'Riya',owes:'₹240',dir:'owes you'},
+     {name:'Karan',owes:'₹180',dir:'you owe'},
+     {name:'Priya',owes:'₹90',dir:'owes you'}].map(p=>`
+  <div class="list-item">
+    <div class="avatar" style="width:32px;height:32px;font-size:12px">${p.name[0]}</div>
+    <div><div class="list-title">${p.name}</div><div class="list-sub">${p.dir}</div></div>
+    <div class="list-right"><div class="list-amount" style="color:${p.dir==='owes you'?'var(--pb-mint)':'#E24B4A'}">${p.owes}</div></div>
+  </div>`).join('')}
+</div>
+<button style="width:100%;background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);padding:10px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;color:var(--color-text-primary);margin-bottom:10px"><i class="ti ti-plus" aria-hidden="true"></i> Add new bill to split</button>
+<div class="insight-card">
+  <i class="ti ti-sparkles insight-icon" aria-hidden="true"></i>
+  <div><div class="insight-title">Settlement suggestion</div><div class="insight-text">Net: Riya + Priya owe you ₹330. Karan owes you ₹180 after netting. Remind them via WhatsApp?</div></div>
+</div>
+`}
+
+function finChatbot(){return chatbotUI('fin','Finance Buddy','Your money, optimized 🦉','#378ADD','var(--pb-blue-l)','ai-card-fin',
+  [['Hi Alex! 👋','How can I help you with your finances today?'],['You can try asking:',null]],
+  ['How can I save more?','Is this a good purchase?','Help me stick to my budget','Analyze my spending'],
+  [{q:'Am I overspending on food?',a:'Yes — you\'ve spent ₹4,330 of your ₹6,000 food budget with 10 days left. At this pace you\'ll overshoot by ~₹200. Try hostel mess 3× this week to save around ₹250.','card':{title:'Food budget snapshot',body:'₹4,330 / ₹6,000 used · 72% · 10 days left'}}]
+)}
+
+function wellDashboard(){return`
+<div style="display:flex;gap:10px;margin-bottom:10px">
+  ${[{label:'Sleep score',val:'72',badge:'6h 30m',col:'var(--pb-blue)',lcol:'var(--pb-blue-l)'},
+     {label:'Stress',val:'Moderate',badge:'Watch',col:'var(--pb-amber)',lcol:'var(--pb-amber-l)'}].map(s=>`
+  <div class="wellness-score" style="flex:1">
+    <div class="score-circle" style="background:${s.lcol}"><span style="font-size:14px;color:${s.col}">${s.val.length>3?'😐':s.val}</span></div>
+    <div class="score-info"><div class="score-title">${s.label}</div><div class="score-val" style="font-size:15px">${s.val.length>3?s.val:'—'}</div><div class="score-desc metric-badge badge-${s.col.includes('blue')?'blue':'amber'}">${s.badge}</div></div>
+  </div>`).join('')}
+</div>
+<div class="metric-row">
+  <div class="metric"><div class="metric-label">Burnout risk</div><div class="metric-val">Low</div><div class="metric-badge badge-green">Good</div></div>
+  <div class="metric"><div class="metric-label">Wellness streak</div><div class="metric-val">14d</div><div class="metric-badge badge-purple">🔥 Active</div></div>
+</div>
+<div class="section-title">Daily wellness <span class="see-all">See all</span></div>
+${[['🧘','Daily check-in','Track mood & emotions'],['💨','Breathing exercise','3 min · Reduce stress'],['🎯','Focus session','25 min · Stay productive'],['🌙','Sleep tips','Improve sleep quality']].map(([ic,n,d])=>`
+<div class="list-item">
+  <div class="list-icon" style="background:var(--pb-purple-l);font-size:18px">${ic}</div>
+  <div><div class="list-title">${n}</div><div class="list-sub">${d}</div></div>
+  <i class="ti ti-chevron-right" style="font-size:16px;color:var(--color-text-secondary);margin-left:auto" aria-hidden="true"></i>
+</div>`).join('')}
+`}
+
+function sleepScreen(){return`
+<div class="card" style="text-align:center;padding:18px">
+  <div style="font-size:13px;color:var(--color-text-secondary)">Last night's sleep</div>
+  <div style="font-size:34px;font-weight:500;color:var(--color-text-primary);margin:6px 0">6h 30m</div>
+  <span class="metric-badge badge-amber">45 min below normal</span>
+  <div style="display:flex;justify-content:center;gap:16px;margin-top:12px">
+    <div style="text-align:center"><div style="font-size:13px;font-weight:500;color:var(--color-text-primary)">11:30 PM</div><div style="font-size:10px;color:var(--color-text-secondary)">Bedtime</div></div>
+    <div style="text-align:center"><div style="font-size:13px;font-weight:500;color:var(--color-text-primary)">6:00 AM</div><div style="font-size:10px;color:var(--color-text-secondary)">Wake time</div></div>
+    <div style="text-align:center"><div style="font-size:13px;font-weight:500;color:var(--color-text-primary)">82</div><div style="font-size:10px;color:var(--color-text-secondary)">Sleep score</div></div>
+  </div>
+</div>
+<div class="section-title">7-day sleep trend</div>
+<div class="card">
+  <div style="display:flex;align-items:flex-end;gap:6px;height:70px">
+    ${[7,6.5,8,5.5,7.5,6,6.5].map((h,i)=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">
+      <span style="font-size:9px;color:var(--color-text-secondary)">${h}h</span>
+      <div style="width:100%;height:${(h/8)*60}px;background:${h>=7?'var(--pb-mint)':h>=6?'var(--pb-amber)':'#E24B4A'};border-radius:3px 3px 0 0"></div>
+    </div>`).join('')}
+  </div>
+  <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--color-text-secondary);margin-top:4px">
+    ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<span>${d}</span>`).join('')}
+  </div>
+</div>
+<div class="insight-card">
+  <i class="ti ti-sparkles insight-icon" aria-hidden="true"></i>
+  <div><div class="insight-title">Sleep recommendation</div><div class="insight-text">Wind down by 10:30 PM tonight. Avoid phone usage 30 min before bed. Your Thursday pattern shows exam-night disruption.</div></div>
+</div>
+`}
+
+function burnoutScreen(){return`
+<div class="card" style="text-align:center;padding:18px">
+  <div style="font-size:13px;color:var(--color-text-secondary);margin-bottom:8px">Burnout risk meter</div>
+  <div class="meter-bar" style="margin-bottom:8px"><div class="meter-fill" style="width:38%"></div></div>
+  <div style="font-size:24px;font-weight:500;color:var(--pb-mint)">Low risk — 38%</div>
+  <div style="font-size:12px;color:var(--color-text-secondary);margin-top:4px">Based on study load, sleep & mood patterns</div>
+</div>
+<div class="section-title">Study load analysis</div>
+<div class="card">
+  ${[{day:'Mon',h:6},{day:'Tue',h:8},{day:'Wed',h:4},{day:'Thu',h:9},{day:'Fri',h:7}].map(d=>`
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+    <span style="font-size:12px;color:var(--color-text-secondary);min-width:30px">${d.day}</span>
+    <div style="flex:1;height:8px;background:var(--color-background-secondary);border-radius:4px;overflow:hidden"><div style="width:${d.h/10*100}%;height:100%;background:${d.h>8?'#E24B4A':d.h>6?'var(--pb-amber)':'var(--pb-mint)'};border-radius:4px"></div></div>
+    <span style="font-size:12px;font-weight:500;color:var(--color-text-primary);min-width:28px">${d.h}h</span>
+  </div>`).join('')}
+</div>
+<div class="insight-card">
+  <i class="ti ti-sparkles insight-icon" aria-hidden="true"></i>
+  <div><div class="insight-title">Recovery recommendation</div><div class="insight-text">Thursday's 9h study session is high-risk. Schedule a mandatory break day. Guided breathing for 5 min now?</div></div>
+</div>
+`}
+
+function stressScreen(){return`
+<div class="card">
+  <div class="card-title"><i class="ti ti-brain" aria-hidden="true"></i> Mood analytics this week</div>
+  <div style="display:flex;justify-content:space-between;margin-top:8px">
+    ${[['😄','Mon',80],['🙂','Tue',65],['😐','Wed',50],['😔','Thu',30],['🙂','Fri',60],['😄','Sat',80],['🙂','Sun',70]].map(([em,d,s])=>`
+    <div style="text-align:center">
+      <div style="font-size:18px">${em}</div>
+      <div style="font-size:9px;color:var(--color-text-secondary);margin-top:2px">${d}</div>
+    </div>`).join('')}
+  </div>
+</div>
+<div class="section-title">Stress triggers identified</div>
+${[['📝','Assignment deadlines','High correlation'],['💤','Poor sleep nights','Moderate correlation'],['💰','Low balance days','Low correlation']].map(([ic,n,d])=>`
+<div class="card" style="display:flex;gap:10px;align-items:center;padding:10px 14px">
+  <div style="font-size:20px">${ic}</div>
+  <div style="flex:1"><div class="list-title">${n}</div><div class="list-sub">${d}</div></div>
+</div>`).join('')}
+<div class="insight-card">
+  <i class="ti ti-sparkles insight-icon" aria-hidden="true"></i>
+  <div><div class="insight-title">Stress insight</div><div class="insight-text">Thursday stress spike matches deadline day. Pre-planning tasks 2 days before reduces stress by an estimated 30%.</div></div>
+</div>
+`}
+
+function routineScreen(){return`
+<div class="section-title">Habit consistency this week</div>
+${[{h:'Sleep by 11 PM',pct:57,c:'var(--pb-amber)'},{h:'Eat 3 meals',pct:86,c:'var(--pb-mint)'},{h:'Study 4h',pct:71,c:'var(--pb-purple)'},{h:'Exercise',pct:43,c:'var(--pb-blue)'}].map(h=>`
+<div class="progress-wrap">
+  <div class="progress-label"><span>${h.h}</span><span>${h.pct}%</span></div>
+  <div class="progress-bar"><div class="progress-fill" style="width:${h.pct}%;background:${h.c}"></div></div>
+</div>`).join('')}
+<div class="section-title">Schedule disruptions</div>
+<div class="card" style="display:flex;gap:10px;align-items:center;border-left:3px solid var(--pb-amber);border-radius:0 var(--border-radius-lg) var(--border-radius-lg) 0">
+  <i class="ti ti-alert-triangle" style="font-size:20px;color:var(--pb-amber)" aria-hidden="true"></i>
+  <div><div class="list-title">Missed 2 meals this week</div><div class="list-sub">Tuesday and Thursday lunch skipped</div></div>
+</div>
+<div class="card" style="display:flex;gap:10px;align-items:center;border-left:3px solid #E24B4A;border-radius:0 var(--border-radius-lg) var(--border-radius-lg) 0">
+  <i class="ti ti-moon" style="font-size:20px;color:#E24B4A" aria-hidden="true"></i>
+  <div><div class="list-title">3 late nights this week</div><div class="list-sub">Slept after 1 AM on Mon, Thu, Fri</div></div>
+</div>
+`}
+
+function checkInsScreen(){return`
+<div class="check-in-card">
+  <div class="check-in-title">Weekly wellness check-in</div>
+  <div class="check-in-sub">PHQ-2 validated · Takes 2 minutes</div>
+  <div style="font-size:13px;color:var(--pb-purple-d);margin-bottom:10px">Over the past week, how often have you felt little interest or pleasure in doing things?</div>
+  ${['Not at all','Several days','More than half the days','Nearly every day'].map((o,i)=>`
+  <div style="padding:9px 12px;border-radius:var(--border-radius-md);border:0.5px solid ${i===1?'var(--pb-purple)':'var(--color-border-tertiary)'};background:${i===1?'var(--pb-purple-l)':'transparent'};margin-bottom:6px;font-size:12px;color:${i===1?'var(--pb-purple-d)':'var(--color-text-primary)'};cursor:pointer">${o}</div>`).join('')}
+</div>
+<div class="card">
+  <div class="card-title">Reflection card</div>
+  <div style="font-size:13px;color:var(--color-text-secondary);font-style:italic;line-height:1.6">"What's one thing that went well this week that you can build on?"</div>
+  <textarea class="journal-input" style="min-height:60px;margin-top:8px" placeholder="Write your reflection…"></textarea>
+</div>
+`}
+
+function focusScreen(){return`
+<div class="pomodoro">
+  <div class="timer-circle">
+    <div class="timer-time">24:32</div>
+    <div class="timer-phase">Focus session</div>
+  </div>
+  <div class="timer-btns">
+    <button class="timer-btn">Reset</button>
+    <button class="timer-btn primary"><i class="ti ti-player-pause" aria-hidden="true"></i> Pause</button>
+    <button class="timer-btn">Break →</button>
+  </div>
+</div>
+<div class="metric-row" style="margin-top:4px">
+  <div class="metric"><div class="metric-label">Sessions today</div><div class="metric-val">3</div><div class="metric-badge badge-green">On track</div></div>
+  <div class="metric"><div class="metric-label">Streak reward</div><div class="metric-val">🌟 x3</div><div class="metric-badge badge-purple">Unlock</div></div>
+</div>
+<div class="section-title">Break activities</div>
+${[['🚶','10-min walk','Recharge energy'],['💨','Box breathing','2 min · Calm focus'],['🤸','Desk stretches','Relieve tension']].map(([ic,n,d])=>`
+<div class="list-item">
+  <div class="list-icon" style="background:var(--pb-purple-l);font-size:18px">${ic}</div>
+  <div><div class="list-title">${n}</div><div class="list-sub">${d}</div></div>
+  <button style="padding:5px 12px;background:var(--pb-purple-l);border:none;border-radius:14px;font-size:11px;font-weight:500;color:var(--pb-purple-d);cursor:pointer">Start</button>
+</div>`).join('')}
+`}
+
+function socialScreen(){return`
+<div class="metric-row">
+  <div class="metric"><div class="metric-label">Social activity</div><div class="metric-val">Low</div><div class="metric-badge badge-amber">This week</div></div>
+  <div class="metric"><div class="metric-label">Group chats</div><div class="metric-val">2</div><div class="metric-badge badge-blue">Active</div></div>
+</div>
+<div class="insight-card" style="background:var(--pb-mint-l);border-color:#9FE1CB">
+  <i class="ti ti-users" style="font-size:20px;color:var(--pb-mint);margin-top:1px" aria-hidden="true"></i>
+  <div><div class="insight-title" style="color:#085041">Social nudge</div><div class="insight-text" style="color:#085041">You haven't connected with friends in 4 days. A quick coffee with classmates can lift your mood score by up to 15 points.</div></div>
+</div>
+<div class="section-title">Connection suggestions</div>
+${[['Study buddy session','Library — Sat 10 AM','Riya, Karan, +2'],['Campus music night','SAC Auditorium','Open to all'],['Yoga morning circle','Ground floor hostel','6:30 AM · 12 joined']].map(([n,loc,who])=>`
+<div class="deal-card" style="background:var(--pb-mint-l);border-color:#9FE1CB">
+  <div class="deal-icon" style="background:var(--pb-mint)"><i class="ti ti-users" style="font-size:18px" aria-hidden="true"></i></div>
+  <div><div class="deal-title" style="color:#085041">${n}</div><div class="deal-sub" style="color:var(--pb-mint)">${loc} · ${who}</div></div>
+</div>`).join('')}
+`}
+
+function supportScreen(){return`
+<div class="insight-card" style="background:var(--pb-mint-l);border-color:#9FE1CB">
+  <i class="ti ti-heart" style="font-size:20px;color:var(--pb-mint);margin-top:1px" aria-hidden="true"></i>
+  <div><div class="insight-title" style="color:#085041">Emotional support</div><div class="insight-text" style="color:#085041">This is a safe space. Wellness Buddy listens without judgment and never diagnoses — but always knows when to refer you.</div></div>
+</div>
+${[['💨','Guided breathing','Box breathing · 4-4-4-4'],['🧘','Mindfulness exercise','5 min body scan'],['📖','Journaling prompt','Release what weighs on you']].map(([ic,n,d])=>`
+<div class="list-item">
+  <div class="list-icon" style="background:var(--pb-mint-l);font-size:18px">${ic}</div>
+  <div><div class="list-title">${n}</div><div class="list-sub">${d}</div></div>
+  <button style="padding:5px 12px;background:var(--pb-mint-l);border:none;border-radius:14px;font-size:11px;font-weight:500;color:#085041;cursor:pointer">Begin</button>
+</div>`).join('')}
+<div class="card" style="border-left:3px solid #E24B4A;border-radius:0 var(--border-radius-lg) var(--border-radius-lg) 0;margin-top:8px">
+  <div style="font-size:12px;font-weight:500;color:#501313;margin-bottom:4px">In crisis? You're not alone.</div>
+  <div style="font-size:12px;color:var(--color-text-secondary)">iCall helpline: 9152987821 · Available Mon–Sat 8 AM–10 PM</div>
+</div>
+`}
+
+function wellChatbot(){return chatbotUI('well','Wellness Buddy','Here for your mind & body ☁️','var(--pb-lavender)','var(--pb-purple-l)','ai-card-well',
+  [['Hey Alex 🌸','How are you feeling today?'],['You can try asking:',null]],
+  ["I'm feeling stressed",'Sleep tips for better rest','Exam anxiety help','Quick breathing exercise'],
+  [{q:"I'm overwhelmed with exams",a:"I hear you — that sounds really heavy. It's okay to feel this way during exam season. Let's take one breath together first 💨\n\nThen we can break down your week into manageable steps. Want to start with a 2-minute breathing exercise?",'card':{title:'Try box breathing',body:'Inhale 4s → Hold 4s → Exhale 4s → Hold 4s · Repeat 3×'}}]
+)}
+
+function discDashboard(){return`
+<div class="section-title">Nearby deals 🔥 <span class="see-all">See all</span></div>
+<div class="food-grid">
+  ${[['🍛','Mess Express','₹50 full meal','0.2 km'],['🧆','Roll Zone','Rolls & more','0.4 km']].map(([ic,n,d,dist])=>`
+  <div class="food-card">
+    <div class="food-img">${ic}</div>
+    <div class="food-info"><div class="food-name">${n}</div><div class="food-detail">${dist} away</div><div class="food-price">${d}</div></div>
+  </div>`).join('')}
+</div>
+<div class="section-title">Student offers <span class="see-all">See all</span></div>
+${[['🎂','Flat 20% off at local cafes','ID required'],['🍔','Buy 1 Get 1 on all meals','Hostel special']].map(([ic,n,d])=>`
+<div class="deal-card">
+  <div class="deal-icon">${ic}</div>
+  <div><div class="deal-title">${n}</div><div class="deal-sub">${d}</div></div>
+</div>`).join('')}
+<div class="section-title">Quick actions</div>
+<div class="quick-grid">
+  ${[['ti-tools','Hostel Recipes'],['ti-coin','Budget Meals'],['ti-shopping-cart','Groceries'],['ti-map-pin','Nearby']].map(([ic,l])=>`
+  <div class="quick-btn"><i class="ti ${ic}" aria-hidden="true"></i><span class="quick-label">${l}</span></div>`).join('')}
+</div>
+`}
+
+function foodScreen(){return`
+<div style="display:flex;gap:6px;margin-bottom:10px">
+  <button style="flex:1;background:var(--pb-coral);color:#fff;border:none;border-radius:20px;padding:8px;font-size:12px;font-weight:500;cursor:pointer">Food</button>
+  <button style="flex:1;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:20px;padding:8px;font-size:12px;cursor:pointer;color:var(--color-text-secondary)">Recipes</button>
+  <button style="flex:1;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:20px;padding:8px;font-size:12px;cursor:pointer;color:var(--color-text-secondary)">Deals</button>
+</div>
+<div class="section-title">Popular near you <span class="see-all">See all</span></div>
+<div class="food-grid">
+  ${[['🍛','Mess Express','₹50 full meal','4.3 ⭐'],['🧆','Roll Zone','₹40 rolls & more','4.5 ⭐'],['🍜','Student Thai','₹60 Thai','4.4 ⭐'],['🫓','Budget Bites','₹30 snacks','4.2 ⭐']].map(([ic,n,p,r])=>`
+  <div class="food-card">
+    <div class="food-img">${ic}</div>
+    <div class="food-info"><div class="food-name">${n}</div><div class="food-detail">${r}</div><div class="food-price">${p}</div></div>
+  </div>`).join('')}
+</div>
+<div class="insight-card" style="background:var(--pb-coral-l);border-color:#F5C4B3">
+  <i class="ti ti-sparkles" style="font-size:20px;color:var(--pb-coral);margin-top:1px" aria-hidden="true"></i>
+  <div><div class="insight-title" style="color:var(--pb-coral-d)">Nutrition + budget pick</div><div class="insight-text" style="color:var(--pb-coral-d)">Mess Express scores highest on nutrition-per-rupee ratio today. Dal + rice + sabzi = complete meal at ₹50.</div></div>
+</div>
+`}
+
+function travelScreen(){return`
+<div class="section-title">Cheapest route finder</div>
+<div class="card">
+  <div style="margin-bottom:8px">
+    <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:4px">From</div>
+    <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:8px 12px;font-size:13px;color:var(--color-text-primary);border:0.5px solid var(--color-border-tertiary)">Hostel Block B</div>
+  </div>
+  <div>
+    <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:4px">To</div>
+    <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:8px 12px;font-size:13px;color:var(--color-text-secondary);border:0.5px solid var(--color-border-tertiary)">Main campus gate</div>
+  </div>
+</div>
+<div class="section-title">Route options</div>
+${[['🚌','Metro + Bus','32 min','₹22'],['🚲','Cycle share','25 min','₹8'],['🛵','Ride-share pool','18 min','₹45'],['🚶','Walk','42 min','₹0']].map(([ic,n,t,p])=>`
+<div class="route-card">
+  <div class="route-icon" style="background:var(--pb-coral-l)">${ic}</div>
+  <div class="route-info"><div class="route-name">${n}</div><div class="route-detail">${t}</div></div>
+  <div class="route-price">${p}</div>
+</div>`).join('')}
+<div class="insight-card" style="background:var(--pb-coral-l);border-color:#F5C4B3">
+  <i class="ti ti-sparkles" style="font-size:20px;color:var(--pb-coral);margin-top:1px" aria-hidden="true"></i>
+  <div><div class="insight-title" style="color:var(--pb-coral-d)">Best pick for you</div><div class="insight-text" style="color:var(--pb-coral-d)">Cycle share saves ₹14 vs metro today and adds physical activity — good for your sedentary warning.</div></div>
+</div>
+`}
+
+function safeNightScreen(){return`
+<div class="insight-card" style="background:#FCEBEB;border-color:#F7C1C1">
+  <i class="ti ti-shield-check" style="font-size:20px;color:#E24B4A;margin-top:1px" aria-hidden="true"></i>
+  <div><div class="insight-title" style="color:#501313">Safe night travel mode</div><div class="insight-text" style="color:#501313">Detected: It's 11:47 PM. Share your live route with a trusted contact below before heading out.</div></div>
+</div>
+<div class="card">
+  <div class="card-title"><i class="ti ti-map" aria-hidden="true"></i> Safe route map</div>
+  <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-md);height:110px;display:flex;align-items:center;justify-content:center;border:0.5px solid var(--color-border-tertiary)">
+    <div style="text-align:center"><i class="ti ti-map-2" style="font-size:28px;color:var(--pb-coral)" aria-hidden="true"></i><div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px">Live safe route active</div></div>
+  </div>
+</div>
+<div class="section-title">Emergency contacts</div>
+${[['👩','Riya (Hostel buddy)','Notified'],['👨','Dad','Tap to notify']].map(([ic,n,s])=>`
+<div class="list-item">
+  <div class="avatar">${ic}</div>
+  <div><div class="list-title">${n}</div><div class="list-sub">${s}</div></div>
+  <button style="padding:5px 12px;background:${s==='Notified'?'var(--pb-mint-l)':'var(--pb-coral-l)'};border:none;border-radius:14px;font-size:11px;font-weight:500;color:${s==='Notified'?'#085041':'var(--pb-coral-d)'};cursor:pointer">${s==='Notified'?'✓ Notified':'Notify'}</button>
+</div>`).join('')}
+<button style="width:100%;margin-top:8px;background:#E24B4A;color:#fff;border:none;border-radius:var(--border-radius-lg);padding:12px;font-size:14px;font-weight:500;cursor:pointer"><i class="ti ti-alarm" aria-hidden="true"></i> SOS — Call campus security</button>
+`}
+
+function snacksScreen(){return`
+<div class="section-title">Brain-friendly snacks 🧠</div>
+${[{ic:'🍌',n:'Banana + peanut butter',nut:'High energy, protein',cost:'₹25',score:'9.2/10'},
+   {ic:'🥜',n:'Mixed nuts (30g)',nut:'Healthy fats, focus',cost:'₹35',score:'9.0/10'},
+   {ic:'🫐',n:'Blueberries',nut:'Antioxidants, memory',cost:'₹40',score:'8.8/10'}].map(s=>`
+<div class="card" style="display:flex;gap:10px;align-items:center">
+  <div style="font-size:28px">${s.ic}</div>
+  <div style="flex:1"><div class="list-title">${s.n}</div><div class="list-sub">${s.nut}</div><div style="font-size:11px;color:var(--pb-coral);margin-top:2px">${s.cost} · Score: ${s.score}</div></div>
+</div>`).join('')}
+<div class="insight-card" style="background:var(--pb-coral-l);border-color:#F5C4B3">
+  <i class="ti ti-sparkles" style="font-size:20px;color:var(--pb-coral);margin-top:1px" aria-hidden="true"></i>
+  <div><div class="insight-title" style="color:var(--pb-coral-d)">Snack vs energy drink</div><div class="insight-text" style="color:var(--pb-coral-d)">Banana + peanut butter gives sustained energy for 3h. Energy drinks crash after 1h and cost 4× more.</div></div>
+</div>
+`}
+
+function activitiesScreen(){return`
+<div class="section-title">Micro-activities for stress relief</div>
+${[['⚡','5-min dance break','Mood reset · High impact','5 min'],['🎮','Mini puzzle','Brain refresh · Low effort','3 min'],['🌱','Doodle & breathe','Creative calm · Zero prep','5 min'],['🏃','Staircase sprint','Quick cardio · High energy','4 min']].map(([ic,n,d,t])=>`
+<div class="list-item">
+  <div class="list-icon" style="background:var(--pb-coral-l);font-size:18px">${ic}</div>
+  <div><div class="list-title">${n}</div><div class="list-sub">${d} · ${t}</div></div>
+  <button style="padding:5px 12px;background:var(--pb-coral-l);border:none;border-radius:14px;font-size:11px;font-weight:500;color:var(--pb-coral-d);cursor:pointer">Go</button>
+</div>`).join('')}
+<div class="section-title">Quick games</div>
+${[['🧩','Word scramble','2 min'],['🔢','Math sprint','3 min']].map(([ic,n,t])=>`
+<div class="card" style="display:flex;align-items:center;gap:10px">
+  <div style="font-size:24px">${ic}</div>
+  <div style="flex:1"><div class="list-title">${n}</div><div class="list-sub">${t} · Stress relief game</div></div>
+  <button style="padding:6px 14px;background:var(--pb-coral);color:#fff;border:none;border-radius:14px;font-size:11px;cursor:pointer">Play</button>
+</div>`).join('')}
+`}
+
+function campusScreen(){return`
+<div class="section-title">Campus resources</div>
+${[['🏥','Counseling Center','Mon–Fri 9 AM–5 PM · Room 201','Book slot'],['📚','Tutoring services','All subjects · Peer-led · Free','Find tutor'],['🍽️','Food pantry','No questions asked · Tue & Thu','Get help'],['💰','Financial aid office','Scholarship help · Walk-in ok','Visit']].map(([ic,n,d,btn])=>`
+<div class="list-item">
+  <div class="list-icon" style="background:var(--pb-purple-l);font-size:18px">${ic}</div>
+  <div style="flex:1"><div class="list-title">${n}</div><div class="list-sub">${d}</div></div>
+  <button style="padding:5px 10px;background:var(--pb-purple-l);border:none;border-radius:12px;font-size:10px;font-weight:500;color:var(--pb-purple-d);cursor:pointer;white-space:nowrap">${btn}</button>
+</div>`).join('')}
+<div class="insight-card">
+  <i class="ti ti-sparkles insight-icon" aria-hidden="true"></i>
+  <div><div class="insight-title">Resource reminder</div><div class="insight-text">Financial aid scholarship deadline is June 20 — 7 days away. The office is open 10 AM–3 PM tomorrow. Want a reminder?</div></div>
+</div>
+`}
+
+function goalsScreen(){return`
+<div class="section-title">Your goals</div>
+${[{g:'CGPA above 8.5',p:70,q:'Programming & DSA',d:'Dec 2026'},
+   {g:'Save ₹50,000',p:44,q:'Finance discipline',d:'Mar 2027'},
+   {g:'Run 5K in 30 min',p:55,q:'Physical fitness',d:'Aug 2026'}].map(g=>`
+<div class="goal-card">
+  <div class="goal-row"><div class="goal-name">${g.g}</div><div class="goal-pct">${g.p}%</div></div>
+  <div class="progress-bar" style="margin-bottom:6px"><div class="progress-fill" style="width:${g.p}%;background:var(--pb-coral)"></div></div>
+  <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--color-text-secondary)"><span>Focus: ${g.q}</span><span>${g.d}</span></div>
+</div>`).join('')}
+<div class="insight-card" style="background:var(--pb-coral-l);border-color:#F5C4B3">
+  <i class="ti ti-sparkles" style="font-size:20px;color:var(--pb-coral);margin-top:1px" aria-hidden="true"></i>
+  <div><div class="insight-title" style="color:var(--pb-coral-d)">Like-minded community</div><div class="insight-text" style="color:var(--pb-coral-d)">12 students share your CGPA goal. Join their Discord study group → PocketBuddy Community #cgpa-grind</div></div>
+</div>
+`}
+
+function fitnessScreen(){return`
+<div class="metric-row">
+  <div class="metric"><div class="metric-label">Steps today</div><div class="metric-val">4,230</div><div class="metric-badge badge-amber">Below 8k goal</div></div>
+  <div class="metric"><div class="metric-label">Active mins</div><div class="metric-val">22</div><div class="metric-badge badge-blue">+12 from Tue</div></div>
+</div>
+<div class="card" style="border-left:3px solid var(--pb-amber);border-radius:0 var(--border-radius-lg) var(--border-radius-lg) 0">
+  <div style="display:flex;align-items:center;gap:8px"><i class="ti ti-alert-triangle" style="font-size:18px;color:var(--pb-amber)" aria-hidden="true"></i><div style="font-size:13px;font-weight:500;color:var(--color-text-primary)">Sedentary for 3h 20m</div></div>
+  <div style="font-size:12px;color:var(--color-text-secondary);margin-top:4px">You've been sitting since 2 PM. A short walk now would break the pattern.</div>
+</div>
+<div class="section-title">Upper / lower body balance</div>
+<div class="card">
+  <div class="progress-wrap"><div class="progress-label"><span>Upper body work</span><span>60%</span></div><div class="progress-bar"><div class="progress-fill" style="width:60%;background:var(--pb-coral)"></div></div></div>
+  <div class="progress-wrap"><div class="progress-label"><span>Lower body work</span><span>35%</span></div><div class="progress-bar"><div class="progress-fill" style="width:35%;background:var(--pb-amber)"></div></div></div>
+  <div style="font-size:11px;color:var(--pb-coral-d);margin-top:6px">⚠️ Lower body underworked this week — add squats or a walk today.</div>
+</div>
+<div class="section-title">Weekly activity</div>
+<div style="display:flex;align-items:flex-end;gap:6px;height:60px">
+  ${[4200,6800,3100,7200,4230,0,0].map((s,i)=>`<div style="flex:1;height:${Math.min(s/7200*100,100)}%;background:${s>6000?'var(--pb-mint)':s>4000?'var(--pb-amber)':'#E24B4A'};border-radius:3px 3px 0 0;min-height:${s>0?'4px':'0'}"></div>`).join('')}
+</div>
+<div style="display:flex;justify-content:space-between;font-size:9px;color:var(--color-text-secondary);margin-top:4px">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<span>${d}</span>`).join('')}</div>
+`}
+
+function discChatbot(){return chatbotUI('disc','Discover Buddy','Food, travel & student hacks 🧭','var(--pb-coral)','var(--pb-coral-l)','ai-card-disc',
+  [['Hey Alex! 😎','Ready to explore some awesome deals?'],['You can try asking:',null]],
+  ['Cheap food near me','Best way to travel to college','Student discounts','Budget travel tips'],
+  [{q:'Find me affordable lunch near campus',a:'Got 3 great options within 0.5 km of campus under ₹80:\n\n🍛 Mess Express — Dal + rice + sabzi · ₹50 · 0.2 km\n🧆 Roll Zone — 2 veg rolls + chutney · ₹60 · 0.4 km\n🍜 Student Thai — Noodles · ₹70 · 0.6 km\n\nMess Express wins on nutrition-per-rupee today!','card':{title:'Best pick today',body:'Mess Express · ₹50 · Nutrition score 9.2/10 · 0.2 km'}}]
+)}
+
+function helperCommand(){return`
+<div class="check-in-card" style="background:var(--pb-purple-l);border-color:var(--pb-lavender)">
+  <div class="check-in-title">Helper Buddy — AI command center</div>
+  <div class="check-in-sub">Cross-domain orchestration at your fingertips</div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    ${['Plan my week','Review finances','Wellness audit','Goal check'].map(c=>`<div style="padding:6px 12px;background:white;border-radius:14px;border:0.5px solid var(--pb-lavender);font-size:11px;font-weight:500;color:var(--pb-purple-d);cursor:pointer">${c}</div>`).join('')}
+  </div>
+</div>
+<div class="section-title">Cross-domain status</div>
+${[{domain:'Finance Buddy',status:'Budget 69% · On track',icon:'ti-piggy-bank',c:'var(--pb-blue)'},
+   {domain:'Wellness Buddy',status:'Sleep low · Stress moderate',icon:'ti-heart',c:'var(--pb-lavender)'},
+   {domain:'Discover Buddy',status:'2 deals expiring today',icon:'ti-compass',c:'var(--pb-coral)'}].map(d=>`
+<div class="card" style="display:flex;gap:10px;align-items:center">
+  <div style="width:36px;height:36px;border-radius:50%;background:var(--pb-purple-l);display:flex;align-items:center;justify-content:center"><i class="ti ${d.icon}" style="font-size:18px;color:${d.c}" aria-hidden="true"></i></div>
+  <div><div class="list-title">${d.domain}</div><div class="list-sub">${d.status}</div></div>
+</div>`).join('')}
+`}
+
+function helperInsights(){return`
+<div class="section-title">Today's AI insights</div>
+${[{title:'Morning priority',body:'3h study window opens at 9 AM based on your class schedule and focus history.',icon:'ti-sun',col:'var(--pb-amber)'},
+   {title:'Finance alert',body:'Snack spend is trending 20% above average — reassign ₹100 from misc budget.',icon:'ti-coin',col:'var(--pb-blue)'},
+   {title:'Wellness nudge',body:'You haven\'t taken a break in 2.5h. A 10-min walk now boosts focus by ~18%.',icon:'ti-leaf',col:'var(--pb-mint)'},
+   {title:'Discover tip',body:'Mess Express buy-1-get-1 ends at 2 PM today — fits your ₹80 lunch budget.',icon:'ti-map-pin',col:'var(--pb-coral)'}].map(ins=>`
+<div class="insight-card">
+  <i class="ti ${ins.icon} insight-icon" style="color:${ins.col}" aria-hidden="true"></i>
+  <div><div class="insight-title">${ins.title}</div><div class="insight-text">${ins.body}</div></div>
+</div>`).join('')}
+`}
+
+function helperReview(){return`
+<div class="section-title">Weekly review — June 7–13</div>
+<div class="metric-row">
+  <div class="metric"><div class="metric-label">Finance score</div><div class="metric-val">78</div><div class="metric-badge badge-blue">↑4</div></div>
+  <div class="metric"><div class="metric-label">Wellness score</div><div class="metric-val">65</div><div class="metric-badge badge-amber">↓3</div></div>
+</div>
+<div class="metric-row">
+  <div class="metric"><div class="metric-label">Goals hit</div><div class="metric-val">5/7</div><div class="metric-badge badge-green">71%</div></div>
+  <div class="metric"><div class="metric-label">Streak</div><div class="metric-val">14d</div><div class="metric-badge badge-purple">🔥</div></div>
+</div>
+<div class="card">
+  <div class="card-title">Highlights</div>
+  ${['Saved ₹300 more than last week ✅','Assignment submitted on time ✅','Sleep below target 3/7 nights ⚠️','Exercise goal missed ⚠️'].map(h=>`<div style="font-size:12px;color:var(--color-text-secondary);padding:5px 0;border-bottom:0.5px solid var(--color-border-tertiary)">${h}</div>`).join('')}
+</div>
+<div class="insight-card">
+  <i class="ti ti-sparkles insight-icon" aria-hidden="true"></i>
+  <div><div class="insight-title">Next week focus</div><div class="insight-text">Prioritize sleep consistency — it's the top predictor of your stress and productivity score. Aim: bed by 11 PM 5/7 nights.</div></div>
+</div>
+`}
+
+function helperAnalytics(){return`
+<div class="section-title">Cross-domain analytics</div>
+<div class="card">
+  <div class="card-title">Life balance radar</div>
+  <svg viewBox="0 0 200 160" width="100%">
+    <polygon points="100,30 155,65 140,130 60,130 45,65" fill="none" stroke="var(--color-border-tertiary)" stroke-width="0.5"/>
+    <polygon points="100,50 140,75 128,120 72,120 60,75" fill="none" stroke="var(--color-border-tertiary)" stroke-width="0.5"/>
+    <polygon points="100,70 125,85 116,110 84,110 75,85" fill="none" stroke="var(--color-border-tertiary)" stroke-width="0.5"/>
+    <polygon points="100,38 145,68 135,123 65,123 55,68" fill="var(--pb-purple-l)" stroke="var(--pb-purple)" stroke-width="1.5" opacity="0.7"/>
+    <text x="100" y="24" text-anchor="middle" font-size="9" fill="var(--color-text-secondary)">Finance</text>
+    <text x="162" y="68" text-anchor="start" font-size="9" fill="var(--color-text-secondary)">Wellness</text>
+    <text x="150" y="138" text-anchor="middle" font-size="9" fill="var(--color-text-secondary)">Discover</text>
+    <text x="50" y="138" text-anchor="middle" font-size="9" fill="var(--color-text-secondary)">Goals</text>
+    <text x="38" y="68" text-anchor="end" font-size="9" fill="var(--color-text-secondary)">Social</text>
+  </svg>
+</div>
+<div class="metric-row">
+  <div class="metric"><div class="metric-label">Life balance score</div><div class="metric-val">71</div><div class="metric-badge badge-purple">Good</div></div>
+  <div class="metric"><div class="metric-label">Biggest gap</div><div class="metric-val">Sleep</div><div class="metric-badge badge-amber">Fix first</div></div>
+</div>
+`}
+
+function helperBalance(){return`
+<div class="card" style="text-align:center;padding:20px">
+  <div style="font-size:13px;color:var(--color-text-secondary)">Overall life balance score</div>
+  <div style="font-size:44px;font-weight:500;color:var(--pb-purple);margin:8px 0">71</div>
+  <div style="font-size:12px;color:var(--color-text-secondary)">Across finance · wellness · discovery · goals</div>
+  <div class="metric-badge badge-purple" style="margin-top:8px;font-size:12px;padding:5px 14px">Good — Room to improve</div>
+</div>
+${[{area:'Finance',score:78,icon:'ti-piggy-bank',c:'var(--pb-blue)'},
+   {area:'Wellness',score:65,icon:'ti-heart',c:'var(--pb-lavender)'},
+   {area:'Social',score:58,icon:'ti-users',c:'var(--pb-mint)'},
+   {area:'Goals',score:71,icon:'ti-target',c:'var(--pb-coral)'}].map(a=>`
+<div class="progress-wrap">
+  <div class="progress-label"><span style="display:flex;align-items:center;gap:6px"><i class="ti ${a.icon}" style="font-size:14px;color:${a.c}" aria-hidden="true"></i>${a.area}</span><span>${a.score}%</span></div>
+  <div class="progress-bar"><div class="progress-fill" style="width:${a.score}%;background:${a.c}"></div></div>
+</div>`).join('')}
+<div class="insight-card">
+  <i class="ti ti-sparkles insight-icon" aria-hidden="true"></i>
+  <div><div class="insight-title">Balance recommendation</div><div class="insight-text">Social score (58) is your lowest. 1 social activity this weekend can lift your overall score by 6 points.</div></div>
+</div>
+`}
+
+function helperChatbot(){return chatbotUI('help','Helper Buddy','Cross-domain AI orchestrator 🤖','var(--pb-purple)','var(--pb-purple-l)','',
+  [['Hi Alex! I\'m your Helper Buddy 🧠','I can analyze across all your domains — finance, wellness, discover, and goals.'],['You can try asking:',null]],
+  ['Plan my whole week','Cross-domain summary','Should I skip the movie?','Optimize my schedule'],
+  [{q:'Should I buy this ₹3,500 jacket?',a:"Looking across your data:\n\n💰 Finance: You have ₹2,300 in leisure budget — jacket is ₹1,200 over limit.\n🎯 Goal: Your laptop fund is 37% complete — this delays it by 3 weeks.\n🛍️ Discover: Similar jacket found for ₹2,100 on student discount.\n\nMy suggestion: Wait 2 weeks — or grab the discounted option now.",'card':{title:'Budget check',body:'Leisure budget: ₹2,300 left · Jacket: ₹3,500 · Overshoot: ₹1,200'}}]
+)}
+
+function chatbotUI(type,name,tagline,accentColor,bgColor,cardClass,msgPairs,prompts,conv){
+  const userBubbleClass = type==='fin'?'bubble-fin-user':type==='well'?'bubble-well-user':type==='disc'?'bubble-disc-user':'bubble-help-user';
+  return`
+<div class="chat-container">
+  <div class="chat-header">
+    <div class="bot-avatar" style="background:${bgColor}"><i class="ti ti-robot" style="font-size:18px;color:${accentColor}" aria-hidden="true"></i></div>
+    <div><div class="bot-name">${name}</div><div class="bot-status"><span style="width:6px;height:6px;border-radius:50%;background:var(--pb-mint);display:inline-block"></span> Online</div></div>
+    <i class="ti ti-dots" style="font-size:18px;color:var(--color-text-secondary);margin-left:auto;cursor:pointer" aria-hidden="true"></i>
+  </div>
+  <div class="chat-msgs">
+    <div style="font-size:11px;color:var(--color-text-secondary);text-align:center;margin-bottom:6px">Today · ${name}</div>
+    ${msgPairs.map(([b1,b2])=>`
+    <div class="msg-bot">
+      <div class="bubble bubble-bot">${b1}</div>
+      ${b2?`<div class="bubble bubble-bot" style="margin-top:4px">${b2}</div>`:''}
+    </div>`).join('')}
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin:4px 0">
+      ${prompts.map(p=>`<div class="prompt-chip">${p}</div>`).join('')}
+    </div>
+    ${conv.map(c=>`
+    <div class="msg-user"><div class="bubble bubble-user ${userBubbleClass}">${c.q}</div></div>
+    <div class="msg-bot">
+      <div class="bubble bubble-bot" style="white-space:pre-line">${c.a}</div>
+      ${c.card?`<div class="ai-card ${cardClass||'ai-card-fin'}"><div class="ai-card-title">${c.card.title}</div>${c.card.body}</div>`:''}
+    </div>`).join('')}
+  </div>
+  <div class="suggested-prompts">
+    ${prompts.slice(0,3).map(p=>`<div class="prompt-chip">${p}</div>`).join('')}
+  </div>
+  <div class="chat-input-row">
+    <i class="ti ti-microphone" style="font-size:20px;color:var(--color-text-secondary);cursor:pointer" aria-hidden="true"></i>
+    <div class="chat-input">Type a message…</div>
+    <button class="send-btn" style="background:${accentColor}"><i class="ti ti-send" style="font-size:16px" aria-hidden="true"></i></button>
+  </div>
+</div>
+`}
+
+switchDomain('home');
+renderTabs();
+renderContent();
+</script>
